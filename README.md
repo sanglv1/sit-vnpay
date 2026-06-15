@@ -1,0 +1,274 @@
+# sit-vnpay — VNPay SIT Testing Tool
+
+Công cụ nội bộ mô phỏng VNPay gửi callback **Return URL** và **IPN URL** tới server đối tác.
+
+## Cấu trúc
+
+```
+sit-vnpay/
+├── sit-api/     Spring Boot REST API (port 8001)
+└── sit-ui/      React SPA theo pattern vsm-ui (port 8000)
+```
+
+## Yêu cầu
+
+- Java 17+, Maven 3.8+
+- Node.js 18+, npm
+
+## Chạy development
+
+**Terminal 1 — API:**
+
+```bash
+cd sit-api
+# Sao chép và chỉnh .env.example → export biến môi trường (xem mục Cấu hình deploy)
+mvn spring-boot:run
+```
+
+API: http://localhost:8001/sit-api
+
+**Terminal 2 — UI:**
+
+```bash
+cd sit-ui
+npm install
+npm start
+```
+
+UI: http://localhost:8000/sit-ui
+
+Trang **Hướng dẫn thực hiện** (menu sidebar): http://localhost:8000/sit-ui/guide
+
+## API endpoints
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| GET | `/api/dashboard` | Thống kê dashboard |
+| GET | `/api/partners` | Danh sách đối tác |
+| GET | `/api/partners/{id}` | Chi tiết đối tác |
+| POST | `/api/partners` | Tạo đối tác |
+| PUT | `/api/partners/{id}` | Cập nhật đối tác |
+| DELETE | `/api/partners/{id}` | Xóa đối tác |
+| GET | `/api/sessions` | Danh sách phiên kiểm thử |
+| GET | `/api/sessions/{id}` | Chi tiết phiên |
+| GET | `/api/sessions/{id}/export-minutes` | Xuất biên bản SIT (`.docx`, tên file `VNPAYGW-{tmnCode}-SIT.docx`) |
+| POST | `/api/sessions` | Tạo phiên kiểm thử |
+| GET | `/api/tests/metadata` | Metadata form chạy test |
+| POST | `/api/tests/run` | Thực thi callback (gắn `sessionId`) |
+| POST | `/api/tests/run-ipn-suite` | Chạy tự động toàn bộ case IPN trong phiên |
+| GET | `/api/tests` | Lịch sử (phân trang) |
+| GET | `/api/tests/{id}` | Chi tiết kết quả |
+| GET/POST | `/api/manual-acceptance` | Lưu/tải QC thủ công theo phiên |
+| GET/POST/PUT/PATCH/DELETE | `/api/users` | Quản lý người dùng (chỉ ADMIN) |
+| POST | `/api/auth/login` | Đăng nhập, trả JWT |
+| GET | `/api/auth/me` | Thông tin user hiện tại |
+
+Response format: `{ "code": "00", "data": ..., "rspMsg": "Success" }`
+
+**UI types:** `sit-ui/src/types/api.d.ts` mô tả toàn bộ DTO (mirror `sit-api`). Gọi API qua `sit-ui/src/api/client.js` (`sitApi.*`); data fetching dùng React Query hooks trong `sit-ui/src/api/hooks.js`.
+
+Gửi JWT qua header: `Authorization: Bearer <token>`
+
+## Đăng nhập
+
+UI: http://localhost:8000/sit-ui/login
+
+| Quyền | Truy cập |
+|-------|----------|
+| `ADMIN` | Toàn bộ tính năng + quản lý người dùng + CRUD Terminal |
+| `MERCHANT_QC` | Tạo/chạy phiên **của mình**; xem Terminal (read-only, secret bị che); lịch sử test và nghiệm thu thủ công chỉ trong phạm vi phiên sở hữu; không vào `/users` |
+
+Lần đầu chạy API (DB chưa có user), hệ thống tự tạo admin theo `SIT_ADMIN_EMAIL` / `SIT_ADMIN_PASSWORD` (xem bảng cấu hình bên dưới).
+
+## Cấu hình deploy (biến môi trường)
+
+| Biến | Bắt buộc | Mô tả |
+|------|----------|-------|
+| `SIT_JWT_SECRET` | Có | Secret ký JWT, **tối thiểu 32 ký tự** — đổi mỗi môi trường |
+| `SIT_JWT_EXPIRATION_MS` | Không | Thời hạn token (ms), mặc định `86400000` (24h) |
+| `SIT_ADMIN_EMAIL` | Khi seed admin | Email admin tạo lần đầu |
+| `SIT_ADMIN_PASSWORD` | Khi seed admin | Mật khẩu admin tạo lần đầu (tối thiểu 6 ký tự) |
+| `SIT_ADMIN_NAME` | Không | Tên hiển thị admin, mặc định `System Admin` |
+| `SPRING_PROFILES_ACTIVE` | Không | `dev` (mặc định) hoặc `prod` |
+
+Mẫu cấu hình: `sit-api/.env.example`. **Không commit** file `.env` thật hoặc secret production.
+
+### Profile & database
+
+| Profile | Database | H2 Console | Schema |
+|---------|----------|------------|--------|
+| `dev` (mặc định) | H2 file (`./data/sit_vnpay`) | Bật | Flyway migrate + Hibernate `validate` |
+| `prod` | PostgreSQL (bắt buộc) | Tắt | Flyway migrate + Hibernate `validate` |
+
+Migration SQL: `sit-api/src/main/resources/db/migration/`. Thêm migration mới khi đổi schema (vd. `V2__add_column.sql`).
+
+**Nâng cấp từ bản cũ (ddl-auto):** nếu khởi động lỗi validate schema, xóa thư mục `sit-api/data/` (dev) hoặc chạy Flyway baseline thủ công trên DB production đã có sẵn bảng.
+
+Ví dụ chạy local (PowerShell):
+
+```powershell
+$env:SIT_JWT_SECRET = "dev-only-secret-min-32-characters-long"
+$env:SIT_ADMIN_EMAIL = "admin@vnpay.vn"
+$env:SIT_ADMIN_PASSWORD = "YourSecurePassword"
+mvn spring-boot:run
+```
+
+## PostgreSQL (production)
+
+```bash
+cd sit-api
+docker compose up -d
+```
+
+Chạy API với profile `prod`:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "prod"
+$env:DB_URL = "jdbc:postgresql://localhost:5434/sit_vnpay_db"
+$env:DB_USERNAME = "postgres"
+$env:DB_PASSWORD = "sit123456"
+$env:SIT_JWT_SECRET = "change-me-to-a-random-secret-at-least-32-chars"
+$env:SIT_ADMIN_EMAIL = "admin@vnpay.vn"
+$env:SIT_ADMIN_PASSWORD = "YourSecurePassword"
+mvn spring-boot:run
+```
+
+## Luồng hỗ trợ
+
+PAY, TOKEN, RECURRING, INSTALMENT
+
+## Hướng dẫn thực hiện
+
+Quy trình kiểm thử SIT gồm **6 bước**. Cả 4 luồng (PAY, TOKEN, RECURRING, INSTALMENT) đều đi theo cùng quy trình; khác nhau ở cấu hình đối tác và bộ tham số callback mà hệ thống tự sinh.
+
+```
+Chuẩn bị merchant → Tạo đối tác → Tạo phiên → Nghiệm thu IPN (tự động)
+                                                          ↓
+                              Xem kết quả ← Lưu QC thủ công ← Nghiệm thu thủ công
+```
+
+### Bước 1 — Chuẩn bị phía merchant
+
+Trước khi dùng SIT, merchant cần:
+
+1. Tích hợp xong luồng thanh toán tương ứng.
+2. Cung cấp cho QC: **TMN Code**, **Secret Key**, **Return URL**, **IPN URL**.
+3. Đảm bảo server IPN xử lý đúng thứ tự kiểm tra và trả `RspCode` theo chuẩn VNPay.
+
+### Bước 2 — Tạo đối tác (`/partners/create`)
+
+Vào **Đối tác → Thêm đối tác**, khai báo:
+
+| Trường | Mô tả |
+|--------|-------|
+| Tên đối tác | Tên merchant / dự án |
+| Luồng | `PAY`, `TOKEN`, `RECURRING` hoặc `INSTALMENT` |
+| TMN Code | Mã terminal merchant |
+| Secret Key | Khóa bí mật ký HMAC |
+| Return URL | URL redirect sau thanh toán |
+| IPN URL | URL API nhận callback server-to-server |
+
+**Khác biệt theo luồng** (hệ thống tự xử lý khi gửi callback):
+
+| Luồng | Đặc điểm callback |
+|-------|-------------------|
+| PAY | PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
+| TOKEN | snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` khi GD thành công |
+| RECURRING | snake_case (tương tự TOKEN); thêm `vnp_recurring_id` khi GD thành công |
+| INSTALMENT | snake_case (tương tự TOKEN); thêm `vnp_installment_term` (mặc định `3`) |
+
+### Bước 3 — Tạo phiên kiểm thử (`/sessions/new`)
+
+1. Vào **Phiên kiểm thử → Tạo phiên**.
+2. Chọn đối tác (đã gắn luồng).
+3. Nhập ghi chú (tùy chọn) → **Tạo phiên**.
+
+Hệ thống chuyển sang tab **Nghiệm thu tự động**. Mỗi phiên theo dõi tiến độ `X/6 ĐẠT`.
+
+### Bước 4 — Nghiệm thu tự động: IPN (`/sessions/{id}/auto`)
+
+Tool mô phỏng VNPay gửi **HTTP GET** tới **IPN URL** của merchant, kèm header `X-Forwarded-For: 113.160.92.202` (IP sandbox VNPay).
+
+**Chuẩn bị dữ liệu:**
+
+| Tham số | Mô tả |
+|---------|-------|
+| Mã giao dịch | `vnp_TxnRef` (PAY) / `vnp_txn_ref` (TOKEN, RECURRING, INSTALMENT) — nhập trên form SIT |
+| Số tiền (VND) | `vnp_Amount` (PAY) / `vnp_amount` (các luồng khác) — giá trị gửi đi = số VND × 100 |
+| Số tiền sai (VND) | Dùng cho Case 3 — ghi đè `vnp_Amount` / `vnp_amount` (mặc định = số tiền đúng + 1.000 VND) |
+
+**Hai cách chạy:**
+
+- **Gửi 1 callback IPN** — chọn test case riêng lẻ rồi gửi.
+- **Tiến hành kiểm tra tự động** — chạy lần lượt toàn bộ 6 case:
+
+| Bước | Case | Kịch bản | RspCode mong đợi |
+|------|------|----------|------------------|
+| 1 | Case 1 | Chữ ký không hợp lệ (`vnp_SecureHash` / `vnp_secure_hash`) | **97** |
+| 2 | Case 2 | `vnp_TxnRef` / `vnp_txn_ref` không tồn tại (tool tự sinh mã giả) | **01** |
+| 3 | Case 3 | `vnp_Amount` / `vnp_amount` không khớp | **04** |
+| 4 | Case 6 | Giao dịch thất bại (`vnp_ResponseCode` ≠ 00) | **00** |
+| 5 | Case 5 | Giao dịch thành công | **00** |
+| 6 | Case 4 | Gửi lại khi đơn đã xác nhận | **02** |
+
+**Tiêu chí PASS:** HTTP 2xx, không lỗi kết nối, `RspCode` trong response body khớp giá trị mong đợi.
+
+**Logic IPN merchant cần đáp ứng:**
+
+```
+1. Kiểm tra chữ ký
+   PAY: vnp_SecureHash | Khác: vnp_secure_hash → sai: RspCode 97
+2. Kiểm tra mã giao dịch
+   PAY: vnp_TxnRef | Khác: vnp_txn_ref → không có: RspCode 01
+3. Kiểm tra số tiền
+   PAY: vnp_Amount | Khác: vnp_amount → sai: RspCode 04
+4. Kiểm tra trạng thái đơn → đã xử lý: RspCode 02
+5. Kiểm tra kết quả giao dịch
+   PAY: vnp_ResponseCode=00 & vnp_TransactionStatus=00 → SUCCESS → RspCode 00
+   Khác: vnp_response_code=00 & vnp_transaction_status=00 → SUCCESS → RspCode 00
+   Ngược lại → FAIL → RspCode 00 (đã nhận IPN)
+```
+
+### Bước 5 — Nghiệm thu thủ công (`/sessions/{id}/manual`)
+
+Các hạng mục sau **không tự động** — QC xác nhận bằng checklist và bằng chứng:
+
+| Hạng mục | Nội dung | Cách thực hiện |
+|----------|----------|----------------|
+| Return URL — GD thành công | Merchant hiển thị đúng trang kết quả | Thực hiện GD thật trên cổng VNPay → nhập `vnp_TxnRef` / `vnp_txn_ref` + upload ảnh chụp màn hình |
+| Return URL — GD thất bại | Merchant hiển thị đúng trang thất bại | Tương tự, dùng `vnp_TxnRef` / `vnp_txn_ref` của GD thất bại |
+| Case ex | Xử lý exception ở đầu IPN URL | Xác nhận merchant trả **RspCode 99** khi lỗi không xử lý được |
+| Whitelist IP | Merchant đã whitelist IP VNPay | Xác nhận IPN chỉ chấp nhận request từ dải IP VNPay |
+| Lưu log | Merchant lưu log request/response | Xác nhận có log đầy đủ hai chiều |
+
+Bấm **Lưu kết quả QC** để lưu theo phiên.
+
+### Bước 6 — Xem kết quả & xuất biên bản
+
+| Màn hình | Nội dung |
+|----------|----------|
+| `/sessions/{id}/suite-result` | Kết quả sau khi chạy full IPN suite |
+| `/tests/{id}` | Chi tiết 1 lần chạy (request, response, pass/fail) |
+| `/tests/history` | Lịch sử toàn bộ lần chạy |
+| `/sessions` | Tiến độ `X/6 ĐẠT` theo phiên |
+
+**Xuất biên bản:** Trong phiên kiểm thử, bấm **Xuất biên bản** để tải file Word theo mẫu VNPay (PAY / TOKEN / RECURRING / INSTALMENT). Tên file: `VNPAYGW-{tmnCode}-SIT.docx`. Hệ thống tự điền thông tin merchant, kết quả IPN tự động và dữ liệu nghiệm thu thủ công.
+
+### Checklist nhanh
+
+| # | Việc cần làm | Tự động / Thủ công |
+|---|--------------|-------------------|
+| 1 | Tạo đối tác đúng luồng | Thủ công |
+| 2 | Tạo phiên kiểm thử | Thủ công |
+| 3 | Case 1–6 IPN (97, 01, 04, 00, 00, 02) | **Tự động** |
+| 4 | Return URL thành công / thất bại | **Thủ công** |
+| 5 | Case ex (RspCode 99) | **Thủ công** |
+| 6 | Whitelist IP | **Thủ công** |
+| 7 | Lưu log | **Thủ công** |
+
+## Quản lý người dùng (`/users` — ADMIN)
+
+| Quyền | Mô tả |
+|-------|-------|
+| `ADMIN` | Quản trị hệ thống |
+| `MERCHANT_QC` | Kiểm thử / QC merchant |
