@@ -23,10 +23,18 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
-      - key: DB_URL
+      - key: DB_HOST
         fromDatabase:
           name: sit-vnpay-db
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: sit-vnpay-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: sit-vnpay-db
+          property: database
       - key: DB_USERNAME
         fromDatabase:
           name: sit-vnpay-db
