@@ -6,7 +6,7 @@ Công cụ nội bộ mô phỏng VNPay gửi callback **Return URL** và **IPN 
 
 ```
 sit-vnpay/
-├── sit-api/     Spring Boot REST API (port 8001)
+├── sit-api/     Spring Boot REST API (port 8001) — tác giả: sanglv
 └── sit-ui/      React SPA theo pattern vsm-ui (port 8000)
 ```
 
@@ -75,8 +75,8 @@ UI: http://localhost:8000/sit-ui/login
 
 | Quyền | Truy cập |
 |-------|----------|
-| `ADMIN` | Toàn bộ tính năng + quản lý người dùng + CRUD Terminal |
-| `MERCHANT_QC` | Tạo/chạy phiên **của mình**; xem Terminal (read-only, secret bị che); lịch sử test và nghiệm thu thủ công chỉ trong phạm vi phiên sở hữu; không vào `/users` |
+| `ADMIN` | Xem và theo dõi hành động **tất cả tài khoản** (Terminal, phiên, lịch sử test, dashboard); quản lý người dùng |
+| `MERCHANT_QC` | Chỉ xem hành động **của mình** (Terminal/phiên/lịch sử do mình tạo); không xem dữ liệu tài khoản khác; không vào `/users` |
 
 Lần đầu chạy API (DB chưa có user), hệ thống tự tạo admin theo `SIT_ADMIN_EMAIL` / `SIT_ADMIN_PASSWORD` (xem bảng cấu hình bên dưới).
 
@@ -137,6 +137,35 @@ mvn spring-boot:run
 
 PAY, TOKEN, RECURRING, INSTALMENT
 
+## Coverage gate backend (lộ trình)
+
+`sit-api` dùng JaCoCo check tại phase `verify` với ngưỡng line coverage cấu hình theo property:
+
+- mặc định (an toàn CI hiện tại): `0.10`
+- sprint gate: `0.30`
+- target gate: `0.40`
+
+Chạy theo từng mức:
+
+```bash
+cd sit-api
+
+# Mặc định CI hiện tại
+mvn verify
+
+# Gate sprint 30%
+mvn verify -Pcoverage-sprint
+
+# Gate mục tiêu 40%
+mvn verify -Pcoverage-target
+```
+
+Có thể override linh hoạt theo pipeline:
+
+```bash
+mvn verify -Djacoco.line.coverage.minimum=0.35
+```
+
 ## Hướng dẫn thực hiện
 
 Quy trình kiểm thử SIT gồm **6 bước**. Cả 4 luồng (PAY, TOKEN, RECURRING, INSTALMENT) đều đi theo cùng quy trình; khác nhau ở cấu hình đối tác và bộ tham số callback mà hệ thống tự sinh.
@@ -172,10 +201,10 @@ Vào **Đối tác → Thêm đối tác**, khai báo:
 
 | Luồng | Đặc điểm callback |
 |-------|-------------------|
-| PAY | PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
-| TOKEN | snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` khi GD thành công |
-| RECURRING | snake_case (tương tự TOKEN); thêm `vnp_recurring_id` khi GD thành công |
-| INSTALMENT | snake_case (tương tự TOKEN); thêm `vnp_installment_term` (mặc định `3`) |
+| PAY | PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
+| TOKEN | snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_command`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` (tùy chọn) khi GD thành công |
+| RECURRING | snake_case (tương tự TOKEN): `vnp_command=recurring_pay`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code` và các field IPN chuẩn |
+| INSTALMENT | PascalCase (tương tự PAY): `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
 
 ### Bước 3 — Tạo phiên kiểm thử (`/sessions/new`)
 
@@ -193,8 +222,8 @@ Tool mô phỏng VNPay gửi **HTTP GET** tới **IPN URL** của merchant, kèm
 
 | Tham số | Mô tả |
 |---------|-------|
-| Mã giao dịch | `vnp_TxnRef` (PAY) / `vnp_txn_ref` (TOKEN, RECURRING, INSTALMENT) — nhập trên form SIT |
-| Số tiền (VND) | `vnp_Amount` (PAY) / `vnp_amount` (các luồng khác) — giá trị gửi đi = số VND × 100 |
+| Mã giao dịch | `vnp_TxnRef` (PAY, INSTALMENT) / `vnp_txn_ref` (TOKEN, RECURRING) — nhập trên form SIT |
+| Số tiền (VND) | `vnp_Amount` (PAY, INSTALMENT) / `vnp_amount` (TOKEN, RECURRING) — giá trị gửi đi = số VND × 100 |
 | Số tiền sai (VND) | Dùng cho Case 3 — ghi đè `vnp_Amount` / `vnp_amount` (mặc định = số tiền đúng + 1.000 VND) |
 
 **Hai cách chạy:**
@@ -217,15 +246,15 @@ Tool mô phỏng VNPay gửi **HTTP GET** tới **IPN URL** của merchant, kèm
 
 ```
 1. Kiểm tra chữ ký
-   PAY: vnp_SecureHash | Khác: vnp_secure_hash → sai: RspCode 97
+   PAY/INSTALMENT: vnp_SecureHash | TOKEN/RECURRING: vnp_secure_hash → sai: RspCode 97
 2. Kiểm tra mã giao dịch
-   PAY: vnp_TxnRef | Khác: vnp_txn_ref → không có: RspCode 01
+   PAY/INSTALMENT: vnp_TxnRef | TOKEN/RECURRING: vnp_txn_ref → không có: RspCode 01
 3. Kiểm tra số tiền
-   PAY: vnp_Amount | Khác: vnp_amount → sai: RspCode 04
+   PAY/INSTALMENT: vnp_Amount | TOKEN/RECURRING: vnp_amount → sai: RspCode 04
 4. Kiểm tra trạng thái đơn → đã xử lý: RspCode 02
 5. Kiểm tra kết quả giao dịch
-   PAY: vnp_ResponseCode=00 & vnp_TransactionStatus=00 → SUCCESS → RspCode 00
-   Khác: vnp_response_code=00 & vnp_transaction_status=00 → SUCCESS → RspCode 00
+   PAY/INSTALMENT: vnp_ResponseCode=00 & vnp_TransactionStatus=00 → SUCCESS → RspCode 00
+   TOKEN/RECURRING: vnp_response_code=00 & vnp_transaction_status=00 → SUCCESS → RspCode 00
    Ngược lại → FAIL → RspCode 00 (đã nhận IPN)
 ```
 
