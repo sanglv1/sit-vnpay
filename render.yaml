@@ -23,8 +23,6 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
-      - key: PORT
-        value: "8001"
       - key: DB_URL
         fromDatabase:
           name: sit-vnpay-db
