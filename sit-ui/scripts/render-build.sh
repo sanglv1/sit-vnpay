@@ -3,8 +3,9 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-# Render static site: app chạy ở root domain (không dùng /sit-ui prefix)
-export PUBLIC_URL=
+# Render static site: app chạy ở root domain (không dùng /sit-ui prefix).
+# PUBLIC_URL phải là "." — chuỗi rỗng bị CRA coi là falsy và fallback về homepage "/sit-ui".
+export PUBLIC_URL=.
 export REACT_APP_BASENAME=
 
 if [ -n "$SIT_API_SERVICE_URL" ]; then
