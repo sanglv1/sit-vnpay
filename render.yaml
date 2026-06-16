@@ -1,0 +1,65 @@
+# Render Blueprint — deploy all-in-one: PostgreSQL + API + UI
+# https://render.com/docs/blueprint-spec
+#
+# Cách dùng:
+# 1. Push repo lên GitHub/GitLab
+# 2. Render Dashboard → New → Blueprint → chọn repo
+# 3. Sau deploy: mở sit-ui URL, đăng nhập bằng SIT_ADMIN_EMAIL / SIT_ADMIN_PASSWORD (xem env trên sit-api)
+
+databases:
+  - name: sit-vnpay-db
+    plan: free
+    databaseName: sit_vnpay_db
+    user: sit_vnpay
+
+services:
+  - type: web
+    name: sit-api
+    runtime: docker
+    rootDir: sit-api
+    plan: free
+    region: singapore
+    healthCheckPath: /sit-api/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: PORT
+        value: "8001"
+      - key: DB_URL
+        fromDatabase:
+          name: sit-vnpay-db
+          property: connectionString
+      - key: DB_USERNAME
+        fromDatabase:
+          name: sit-vnpay-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: sit-vnpay-db
+          property: password
+      - key: SIT_JWT_SECRET
+        generateValue: true
+      - key: SIT_ADMIN_EMAIL
+        value: admin@vnpay.vn
+      - key: SIT_ADMIN_PASSWORD
+        generateValue: true
+      - key: SIT_ADMIN_NAME
+        value: System Admin
+      - key: SIT_CORS_ORIGINS
+        fromService:
+          type: web
+          name: sit-ui
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: sit-ui
+    runtime: static
+    region: singapore
+    buildCommand: chmod +x sit-ui/scripts/render-build.sh && ./sit-ui/scripts/render-build.sh
+    staticPublishPath: sit-ui/build
+    envVars:
+      - key: SIT_API_SERVICE_URL
+        fromService:
+          type: web
+          name: sit-api
+          envVarKey: RENDER_EXTERNAL_URL
