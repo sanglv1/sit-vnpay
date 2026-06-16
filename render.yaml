@@ -13,18 +13,6 @@ databases:
     user: sit_vnpay
 
 services:
-  # Static site phải khai báo type: static (không phải type: web)
-  - type: static
-    name: sit-ui
-    buildCommand: chmod +x sit-ui/scripts/render-build.sh && ./sit-ui/scripts/render-build.sh
-    staticPublishPath: sit-ui/build
-    envVars:
-      - key: SIT_API_SERVICE_URL
-        fromService:
-          type: web
-          name: sit-api
-          envVarKey: RENDER_EXTERNAL_URL
-
   - type: web
     name: sit-api
     runtime: docker
@@ -57,8 +45,17 @@ services:
         generateValue: true
       - key: SIT_ADMIN_NAME
         value: System Admin
-      - key: SIT_CORS_ORIGINS
+      - key: SIT_CORS_ALLOW_ONRENDER
+        value: "true"
+
+  - type: web
+    name: sit-ui
+    runtime: static
+    buildCommand: chmod +x sit-ui/scripts/render-build.sh && ./sit-ui/scripts/render-build.sh
+    staticPublishPath: sit-ui/build
+    envVars:
+      - key: SIT_API_SERVICE_URL
         fromService:
-          type: static
-          name: sit-ui
+          type: web
+          name: sit-api
           envVarKey: RENDER_EXTERNAL_URL
