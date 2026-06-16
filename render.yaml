@@ -47,7 +47,7 @@ services:
         value: System Admin
       - key: SIT_CORS_ORIGINS
         fromService:
-          type: web
+          type: static
           name: sit-ui
           envVarKey: RENDER_EXTERNAL_URL
 
