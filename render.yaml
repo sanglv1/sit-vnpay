@@ -54,7 +54,6 @@ services:
   - type: web
     name: sit-ui
     runtime: static
-    region: singapore
     buildCommand: chmod +x sit-ui/scripts/render-build.sh && ./sit-ui/scripts/render-build.sh
     staticPublishPath: sit-ui/build
     envVars:
