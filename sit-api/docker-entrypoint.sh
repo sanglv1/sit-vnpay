@@ -1,10 +1,32 @@
 #!/bin/sh
 set -e
 
+db_region() {
+  printf '%s' "${DB_REGION:-${RENDER_REGION:-oregon}}"
+}
+
+resolve_pg_host() {
+  host="$1"
+  case "$host" in
+    *.*) printf '%s' "$host" ;;
+    *)
+      region="$(db_region)"
+      printf '%s.%s-postgres.render.com' "$host" "$region"
+      ;;
+  esac
+}
+
+fix_short_hostname_in_url() {
+  url="$1"
+  region="$(db_region)"
+  printf '%s' "$url" | sed -E "s@(://[^@]+@)([^:/@.]+)(:|/)@\1\2.${region}-postgres.render.com\3@"
+}
+
 build_spring_datasource_url() {
   if [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ]; then
+    host="$(resolve_pg_host "$DB_HOST")"
     port="${DB_PORT:-5432}"
-    printf 'jdbc:postgresql://%s:%s/%s?sslmode=require' "$DB_HOST" "$port" "$DB_NAME"
+    printf 'jdbc:postgresql://%s:%s/%s?sslmode=require' "$host" "$port" "$DB_NAME"
     return
   fi
 
@@ -26,6 +48,8 @@ build_spring_datasource_url() {
       ;;
   esac
 
+  url="$(fix_short_hostname_in_url "$url")"
+
   case "$url" in
     *\?*) printf '%s' "${url}&sslmode=require" ;;
     *) printf '%s' "${url}?sslmode=require" ;;
@@ -34,7 +58,8 @@ build_spring_datasource_url() {
 
 if jdbc_url="$(build_spring_datasource_url)"; then
   export SPRING_DATASOURCE_URL="$jdbc_url"
-  echo "Database configured for host=${DB_HOST:-from-connection-string}"
+  db_host="$(printf '%s' "$jdbc_url" | sed -E 's#.*@([^:/?]+).*#\1#')"
+  echo "Database configured (region=$(db_region), host=${db_host})"
 else
   echo "ERROR: missing database configuration (DB_HOST/DB_NAME or DB_URL)" >&2
   exit 1

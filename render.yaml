@@ -1,14 +1,13 @@
 # Render Blueprint — deploy all-in-one: PostgreSQL + API + UI
 # https://render.com/docs/blueprint-spec
 #
-# Cách dùng:
-# 1. Push repo lên GitHub/GitLab
-# 2. Render Dashboard → New → Blueprint → chọn repo
-# 3. Sau deploy: mở sit-ui URL, đăng nhập bằng SIT_ADMIN_EMAIL / SIT_ADMIN_PASSWORD (xem env trên sit-api)
+# API và PostgreSQL phải cùng region để dùng internal network.
+# Region mặc định: oregon (trùng DB free tier Render tạo lần đầu).
 
 databases:
   - name: sit-vnpay-db
     plan: free
+    region: oregon
     databaseName: sit_vnpay_db
     user: sit_vnpay
 
@@ -18,11 +17,13 @@ services:
     runtime: docker
     rootDir: sit-api
     plan: free
-    region: singapore
+    region: oregon
     healthCheckPath: /sit-api/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
+      - key: DB_REGION
+        value: oregon
       - key: DB_URL
         fromDatabase:
           name: sit-vnpay-db
