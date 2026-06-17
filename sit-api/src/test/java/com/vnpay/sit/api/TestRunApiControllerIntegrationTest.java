@@ -2,6 +2,7 @@ package com.vnpay.sit.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vnpay.sit.api.dto.ApiResponse;
+import com.vnpay.sit.api.dto.TestRunResponse;
 import com.vnpay.sit.auth.JwtAuthenticationFilter;
 import com.vnpay.sit.auth.JwtService;
 import com.vnpay.sit.auth.SitUserDetailsService;
@@ -9,6 +10,7 @@ import com.vnpay.sit.config.GlobalExceptionHandler;
 import com.vnpay.sit.model.CallbackType;
 import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.testrun.dto.TestRunForm;
 import com.vnpay.sit.testrun.entity.TestRun;
@@ -24,6 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -48,6 +52,9 @@ class TestRunApiControllerIntegrationTest {
     private PartnerService partnerService;
 
     @MockBean
+    private AccessControlService accessControlService;
+
+    @MockBean
     private TestExecutionService testExecutionService;
 
     @MockBean
@@ -63,6 +70,7 @@ class TestRunApiControllerIntegrationTest {
     void run_shouldReturnSuccessEnvelope() throws Exception {
         TestRun run = sampleRun();
         when(testExecutionService.execute(any(TestRunForm.class), any())).thenReturn(run);
+        when(testExecutionService.toResponse(run)).thenReturn(TestRunResponse.from(run));
 
         TestRunForm form = new TestRunForm();
         form.setPartnerId(1L);
@@ -101,7 +109,7 @@ class TestRunApiControllerIntegrationTest {
 
     @Test
     void metadata_shouldExposeTestCaseOptions() throws Exception {
-        when(partnerService.findAllActive()).thenReturn(List.of());
+        when(partnerService.findAllActiveForPrincipal(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/tests/metadata"))
                 .andExpect(status().isOk())
@@ -120,6 +128,29 @@ class TestRunApiControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("01"))
                 .andExpect(jsonPath("$.rspMsg").value("Không tìm thấy kết quả"));
+    }
+
+    @Test
+    void history_shouldKeepTestRunResponseContract() throws Exception {
+        TestRun run = sampleRun();
+        when(testExecutionService.findHistory(any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(run), PageRequest.of(0, 20), 1));
+        when(testExecutionService.toResponses(List.of(run)))
+                .thenReturn(List.of(TestRunResponse.from(run, "merchant@shop.com")));
+
+        mockMvc.perform(get("/api/tests"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(10))
+                .andExpect(jsonPath("$.data.content[0].partnerId").value(1))
+                .andExpect(jsonPath("$.data.content[0].callbackType").value("IPN"))
+                .andExpect(jsonPath("$.data.content[0].testCase").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.content[0].testCaseLabel").exists())
+                .andExpect(jsonPath("$.data.content[0].txnRef").value("TXN001"))
+                .andExpect(jsonPath("$.data.content[0].targetUrl").exists())
+                .andExpect(jsonPath("$.data.content[0].requestParams").exists())
+                .andExpect(jsonPath("$.data.content[0].passed").value(true))
+                .andExpect(jsonPath("$.data.content[0].sessionCreatedByEmail").value("merchant@shop.com"))
+                .andExpect(jsonPath("$.data.content[0].createdAt").exists());
     }
 
     private static TestRun sampleRun() {

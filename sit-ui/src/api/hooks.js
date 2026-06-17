@@ -59,6 +59,14 @@ export function useSessionsQuery(params = { page: 0, size: 50 }) {
   });
 }
 
+export function useSessionWorkspaceQuery(sessionId, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.sessions.workspace(sessionId),
+    queryFn: () => sitApi.sessions.workspace(sessionId),
+    enabled: enabled && Boolean(sessionId),
+  });
+}
+
 export function useSessionQuery(sessionId, { enabled = true } = {}) {
   return useQuery({
     queryKey: queryKeys.sessions.detail(sessionId),
@@ -72,9 +80,16 @@ export function useCreateSessionMutation() {
   return useMutation({
     mutationFn: (data) => sitApi.sessions.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sessions'] });
+      qc.invalidateQueries({ queryKey: ['sessions', 'list'] });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
+  });
+}
+
+export function useSaveSessionTestInputMutation(sessionId) {
+  return useMutation({
+    mutationFn: (data) => sitApi.sessions.saveTestInput(sessionId, data),
+    meta: { silent: true },
   });
 }
 
@@ -122,11 +137,11 @@ export function useManualAcceptanceQuery(sessionId, { enabled = true } = {}) {
   });
 }
 
-function invalidateSessionTestData(qc, sessionId) {
+function invalidateAfterTestRun(qc, sessionId) {
+  qc.invalidateQueries({ queryKey: queryKeys.sessions.workspace(sessionId) });
   qc.invalidateQueries({ queryKey: queryKeys.sessions.detail(sessionId) });
-  qc.invalidateQueries({ queryKey: ['sessions'] });
-  qc.invalidateQueries({ queryKey: ['tests', 'history'] });
   qc.invalidateQueries({ queryKey: queryKeys.sessions.suiteResult(sessionId) });
+  qc.invalidateQueries({ queryKey: ['sessions', 'list'] });
   qc.invalidateQueries({ queryKey: queryKeys.dashboard });
 }
 
@@ -134,7 +149,7 @@ export function useRunTestMutation(sessionId) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data) => sitApi.tests.run(data),
-    onSuccess: () => invalidateSessionTestData(qc, sessionId),
+    onSuccess: () => invalidateAfterTestRun(qc, sessionId),
   });
 }
 
@@ -142,7 +157,7 @@ export function useRunIpnSuiteMutation(sessionId) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ data, config }) => sitApi.tests.runIpnSuite(data, config),
-    onSuccess: () => invalidateSessionTestData(qc, sessionId),
+    onSuccess: () => invalidateAfterTestRun(qc, sessionId),
   });
 }
 
@@ -162,11 +177,12 @@ export function useSaveManualAcceptanceMutation(sessionId) {
   });
 }
 
-export function useUsersQuery(search = '') {
+export function useUsersQuery(search = '', { enabled = true } = {}) {
   const term = search.trim();
   return useQuery({
     queryKey: queryKeys.users(term),
     queryFn: () => sitApi.users.list(term || undefined),
+    enabled,
   });
 }
 

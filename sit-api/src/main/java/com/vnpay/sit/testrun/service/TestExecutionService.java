@@ -3,6 +3,7 @@ package com.vnpay.sit.testrun.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vnpay.sit.core.CallbackFields;
 import com.vnpay.sit.core.CallbackParamBuilder;
 import com.vnpay.sit.core.CallbackSigner;
 import com.vnpay.sit.model.CallbackType;
@@ -13,10 +14,12 @@ import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.runner.CallbackHttpRunner;
 import com.vnpay.sit.api.dto.PrepareOrderResponse;
+import com.vnpay.sit.api.dto.TestRunResponse;
 import com.vnpay.sit.api.dto.TestSuiteResponse;
 import com.vnpay.sit.api.dto.TestSuiteStepResponse;
 import com.vnpay.sit.session.entity.TestSession;
 import com.vnpay.sit.session.repository.TestSessionRepository;
+import com.vnpay.sit.session.service.TestSessionService;
 import com.vnpay.sit.testrun.dto.PrepareMerchantOrderForm;
 import com.vnpay.sit.testrun.dto.TestSuiteForm;
 import com.vnpay.sit.testrun.dto.TestRunForm;
@@ -30,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
@@ -40,9 +44,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class TestExecutionService {
@@ -58,6 +64,7 @@ public class TestExecutionService {
     private final ObjectMapper objectMapper;
     private final AccessControlService accessControlService;
     private final TestSessionRepository sessionRepository;
+    private final TestSessionService testSessionService;
 
     public TestExecutionService(
             PartnerService partnerService,
@@ -65,7 +72,8 @@ public class TestExecutionService {
             CallbackHttpRunner httpRunner,
             ObjectMapper objectMapper,
             AccessControlService accessControlService,
-            TestSessionRepository sessionRepository
+            TestSessionRepository sessionRepository,
+            TestSessionService testSessionService
     ) {
         this.partnerService = partnerService;
         this.testRunRepository = testRunRepository;
@@ -73,21 +81,61 @@ public class TestExecutionService {
         this.objectMapper = objectMapper;
         this.accessControlService = accessControlService;
         this.sessionRepository = sessionRepository;
+        this.testSessionService = testSessionService;
     }
 
-    public Page<TestRun> findHistory(Pageable pageable, SitUserPrincipal principal) {
+    public Page<TestRun> findHistory(Long sessionId, String createdByEmail, Pageable pageable, SitUserPrincipal principal) {
+        if (sessionId != null) {
+            accessControlService.requireSessionAccess(sessionId, principal);
+            return testRunRepository.findBySessionIdOrderByCreatedAtDesc(sessionId, pageable);
+        }
         if (accessControlService.isAdmin(principal)) {
+            if (StringUtils.hasText(createdByEmail)) {
+                return findHistoryForCreator(createdByEmail.trim(), pageable);
+            }
             return testRunRepository.findAllByOrderByCreatedAtDesc(pageable);
         }
         return findHistoryForMerchant(pageable, principal);
     }
 
-    public Page<TestRun> findHistory(Long sessionId, Pageable pageable, SitUserPrincipal principal) {
-        if (sessionId == null) {
-            return findHistory(pageable, principal);
+    public TestRunResponse toResponse(TestRun run) {
+        String sessionCreatedByEmail = null;
+        if (run.getSessionId() != null) {
+            sessionCreatedByEmail = sessionRepository.findById(run.getSessionId())
+                    .map(TestSession::getCreatedByEmail)
+                    .orElse(null);
         }
-        accessControlService.requireSessionAccess(sessionId, principal);
-        return testRunRepository.findBySessionIdOrderByCreatedAtDesc(sessionId, pageable);
+        return TestRunResponse.from(run, sessionCreatedByEmail);
+    }
+
+    public List<TestRunResponse> toResponses(List<TestRun> runs) {
+        if (runs.isEmpty()) {
+            return List.of();
+        }
+        List<Long> sessionIds = runs.stream()
+                .map(TestRun::getSessionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> creators = sessionIds.isEmpty()
+                ? Map.of()
+                : sessionRepository.findAllById(sessionIds).stream()
+                        .collect(Collectors.toMap(TestSession::getId, TestSession::getCreatedByEmail));
+        return runs.stream()
+                .map(run -> TestRunResponse.from(
+                        run,
+                        run.getSessionId() != null ? creators.get(run.getSessionId()) : null))
+                .toList();
+    }
+
+    private Page<TestRun> findHistoryForCreator(String email, Pageable pageable) {
+        List<Long> sessionIds = sessionRepository.findByCreatedByEmailIgnoreCaseOrderByCreatedAtDesc(email).stream()
+                .map(TestSession::getId)
+                .toList();
+        if (sessionIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        return testRunRepository.findBySessionIdInOrderByCreatedAtDesc(sessionIds, pageable);
     }
 
     public Optional<TestRun> findById(Long id, SitUserPrincipal principal) {
@@ -110,8 +158,7 @@ public class TestExecutionService {
     @Transactional
     public TestRun execute(TestRunForm form, SitUserPrincipal principal) {
         requireRunnableSession(form.getSessionId(), principal);
-        PartnerConfig partner = partnerService.findById(form.getPartnerId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đối tác"));
+        PartnerConfig partner = partnerService.requireAccessible(form.getPartnerId(), principal);
 
         Map<String, String> params = buildParams(partner, form);
 
@@ -150,14 +197,21 @@ public class TestExecutionService {
             run.setPassed(response.httpStatus() >= 200 && response.httpStatus() < 400 && !response.hasError());
         }
 
-        return testRunRepository.save(run);
+        TestRun saved = testRunRepository.save(run);
+        testSessionService.mergeTestInputFromRun(
+                form.getSessionId(),
+                form.getTxnRef().trim(),
+                form.getAmountVnd(),
+                form.getWrongAmountVnd(),
+                principal
+        );
+        return saved;
     }
 
     @Transactional
     public TestSuiteResponse executeIpnSuite(TestSuiteForm form, SitUserPrincipal principal) {
         requireRunnableSession(form.getSessionId(), principal);
-        PartnerConfig partner = partnerService.findById(form.getPartnerId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đối tác"));
+        PartnerConfig partner = partnerService.requireAccessible(form.getPartnerId(), principal);
 
         long wrongAmount = form.getWrongAmountVnd() != null
                 ? form.getWrongAmountVnd()
@@ -194,15 +248,15 @@ public class TestExecutionService {
                 .build();
     }
 
-    public Optional<TestSuiteResponse> getIpnSuiteResult(Long sessionId, SitUserPrincipal principal) {
+    public List<TestRunResponse> findLatestRunsForSession(Long sessionId, SitUserPrincipal principal) {
         accessControlService.requireSessionAccess(sessionId, principal);
-        return getIpnSuiteResult(sessionId);
+        List<TestRun> runs = testRunRepository.findLatestPerTestCaseBySessionId(sessionId);
+        return toResponses(runs);
     }
 
-    public Optional<TestSuiteResponse> getIpnSuiteResult(Long sessionId) {
-        List<TestRun> runs = testRunRepository.findBySessionIdOrderByCreatedAtDesc(sessionId);
+    private Map<TestCaseType, TestRun> latestAutoIpnRunsByCase(Long sessionId) {
         Map<TestCaseType, TestRun> latestByCase = new LinkedHashMap<>();
-        for (TestRun run : runs) {
+        for (TestRun run : testRunRepository.findLatestPerTestCaseBySessionId(sessionId)) {
             if (run.getCallbackType() != CallbackType.IPN) {
                 continue;
             }
@@ -211,6 +265,16 @@ public class TestExecutionService {
             }
             latestByCase.putIfAbsent(run.getTestCase(), run);
         }
+        return latestByCase;
+    }
+
+    public Optional<TestSuiteResponse> getIpnSuiteResult(Long sessionId, SitUserPrincipal principal) {
+        accessControlService.requireSessionAccess(sessionId, principal);
+        return getIpnSuiteResult(sessionId);
+    }
+
+    public Optional<TestSuiteResponse> getIpnSuiteResult(Long sessionId) {
+        Map<TestCaseType, TestRun> latestByCase = latestAutoIpnRunsByCase(sessionId);
         if (latestByCase.isEmpty()) {
             return Optional.empty();
         }
@@ -252,9 +316,8 @@ public class TestExecutionService {
                 .build());
     }
 
-    public PrepareOrderResponse prepareMerchantOrder(PrepareMerchantOrderForm form) {
-        PartnerConfig partner = partnerService.findById(form.getPartnerId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đối tác"));
+    public PrepareOrderResponse prepareMerchantOrder(PrepareMerchantOrderForm form, SitUserPrincipal principal) {
+        PartnerConfig partner = partnerService.requireAccessible(form.getPartnerId(), principal);
 
         String ipnUrl = partner.getIpnUrl();
         if (ipnUrl == null || ipnUrl.isBlank()) {
@@ -316,7 +379,7 @@ public class TestExecutionService {
     private Map<String, String> buildParams(PartnerConfig partner, TestRunForm form) {
         if (form.getTestCase() == TestCaseType.UNKNOWN_ERROR) {
             Map<String, String> params = new LinkedHashMap<>();
-            params.put("vnp_TmnCode", partner.getTmnCode());
+            params.put(CallbackFields.tmnCodeKey(partner.getFlow()), partner.getTmnCode());
             return params;
         }
 

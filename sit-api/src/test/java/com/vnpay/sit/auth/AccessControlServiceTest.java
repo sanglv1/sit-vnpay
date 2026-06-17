@@ -1,6 +1,7 @@
 package com.vnpay.sit.auth;
 
 import com.vnpay.sit.model.UserRole;
+import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.session.entity.TestSession;
 import com.vnpay.sit.session.repository.TestSessionRepository;
 import com.vnpay.sit.testrun.entity.TestRun;
@@ -89,6 +90,40 @@ class AccessControlServiceTest {
 
         assertThatCode(() -> accessControlService.requireTestRunAccess(
                 run, principal("qc@merchant.com", UserRole.MERCHANT_QC)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void requirePartnerAccess_shouldAllowCreator() {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setId(1L);
+        partner.setCreatedByEmail("qc@merchant.com");
+
+        assertThatCode(() -> accessControlService.requirePartnerAccess(
+                partner, principal("qc@merchant.com", UserRole.MERCHANT_QC)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void requirePartnerAccess_shouldDenyOtherMerchant() {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setId(1L);
+        partner.setCreatedByEmail("creator@merchant.com");
+
+        assertThatThrownBy(() -> accessControlService.requirePartnerAccess(
+                partner, principal("other@merchant.com", UserRole.MERCHANT_QC)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("không có quyền");
+    }
+
+    @Test
+    void requirePartnerAccess_shouldAllowAdmin() {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setId(1L);
+        partner.setCreatedByEmail("creator@merchant.com");
+
+        assertThatCode(() -> accessControlService.requirePartnerAccess(
+                partner, principal("admin@vnpay.vn", UserRole.ADMIN)))
                 .doesNotThrowAnyException();
     }
 

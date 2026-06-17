@@ -12,6 +12,8 @@ import java.util.UUID;
 
 public final class CallbackParamBuilder {
 
+    private static final String SIT_APP_USER_ID = "SIT_USER";
+
     private CallbackParamBuilder() {
     }
 
@@ -28,53 +30,19 @@ public final class CallbackParamBuilder {
         long amountMinor = amountVnd * 100;
 
         switch (flow) {
-            case PAY -> {
-                params.put("vnp_TmnCode", tmnCode);
-                params.put("vnp_TxnRef", txnRef);
-                params.put("vnp_Amount", String.valueOf(amountMinor));
-                params.put("vnp_ResponseCode", responseCode(testCase));
-                params.put("vnp_TransactionStatus", transactionStatus(testCase));
-                params.put("vnp_TransactionNo", randomTxnNo());
-                params.put("vnp_PayDate", now);
-                params.put("vnp_BankCode", "NCB");
-                params.put("vnp_CardType", "ATM");
-                params.put("vnp_OrderInfo", "SIT test " + txnRef);
-            }
+            case PAY -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "NCB", "ATM");
+            case INSTALMENT -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "VISA", null);
             case TOKEN -> {
-                params.put("vnp_tmn_code", tmnCode);
-                params.put("vnp_txn_ref", txnRef);
-                params.put("vnp_amount", String.valueOf(amountMinor));
-                params.put("vnp_response_code", responseCode(testCase));
-                params.put("vnp_transaction_status", transactionStatus(testCase));
-                params.put("vnp_transaction_no", randomTxnNo());
-                params.put("vnp_pay_date", now);
-                params.put("vnp_command", "token_pay");
+                putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
+                putSnakeCaseCommandFields(params, txnRef, "token_pay");
                 if (testCase == TestCaseType.SUCCESS) {
                     params.put("vnp_token", "SIT_TOKEN_" + txnRef);
                     params.put("vnp_card_number", "411111****1111");
                 }
             }
             case RECURRING -> {
-                params.put("vnp_tmn_code", tmnCode);
-                params.put("vnp_txn_ref", txnRef);
-                params.put("vnp_amount", String.valueOf(amountMinor));
-                params.put("vnp_response_code", responseCode(testCase));
-                params.put("vnp_transaction_status", transactionStatus(testCase));
-                params.put("vnp_transaction_no", randomTxnNo());
-                params.put("vnp_pay_date", now);
-                if (testCase == TestCaseType.SUCCESS) {
-                    params.put("vnp_recurring_id", "REC_" + txnRef);
-                }
-            }
-            case INSTALMENT -> {
-                params.put("vnp_tmn_code", tmnCode);
-                params.put("vnp_txn_ref", txnRef);
-                params.put("vnp_amount", String.valueOf(amountMinor));
-                params.put("vnp_response_code", responseCode(testCase));
-                params.put("vnp_transaction_status", transactionStatus(testCase));
-                params.put("vnp_transaction_no", randomTxnNo());
-                params.put("vnp_pay_date", now);
-                params.put("vnp_installment_term", "3");
+                putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
+                putSnakeCaseCommandFields(params, txnRef, "recurring_pay");
             }
         }
 
@@ -88,6 +56,54 @@ public final class CallbackParamBuilder {
         return params;
     }
 
+    private static void putPascalCaseIpnFields(
+            Map<String, String> params,
+            String tmnCode,
+            String txnRef,
+            long amountMinor,
+            String now,
+            TestCaseType testCase,
+            String bankCode,
+            String cardType
+    ) {
+        params.put("vnp_TmnCode", tmnCode);
+        params.put("vnp_TxnRef", txnRef);
+        params.put("vnp_Amount", String.valueOf(amountMinor));
+        params.put("vnp_ResponseCode", responseCode(testCase));
+        params.put("vnp_TransactionStatus", transactionStatus(testCase));
+        params.put("vnp_TransactionNo", randomTxnNo());
+        params.put("vnp_PayDate", now);
+        params.put("vnp_BankCode", bankCode);
+        params.put("vnp_OrderInfo", "SIT test " + txnRef);
+        if (cardType != null) {
+            params.put("vnp_CardType", cardType);
+        }
+    }
+
+    private static void putSnakeCaseIpnFields(
+            Map<String, String> params,
+            String tmnCode,
+            String txnRef,
+            long amountMinor,
+            String now,
+            TestCaseType testCase
+    ) {
+        params.put("vnp_tmn_code", tmnCode);
+        params.put("vnp_txn_ref", txnRef);
+        params.put("vnp_amount", String.valueOf(amountMinor));
+        params.put("vnp_response_code", responseCode(testCase));
+        params.put("vnp_transaction_status", transactionStatus(testCase));
+        params.put("vnp_transaction_no", randomTxnNo());
+        params.put("vnp_pay_date", now);
+    }
+
+    private static void putSnakeCaseCommandFields(Map<String, String> params, String txnRef, String command) {
+        params.put("vnp_command", command);
+        params.put("vnp_app_user_id", SIT_APP_USER_ID);
+        params.put("vnp_txn_desc", "SIT test " + txnRef);
+        params.put("vnp_curr_code", "VND");
+    }
+
     private static String responseCode(TestCaseType testCase) {
         return testCase == TestCaseType.FAILED ? "24" : "00";
     }
@@ -97,19 +113,11 @@ public final class CallbackParamBuilder {
     }
 
     private static void replaceTxnRef(Map<String, String> params, PaymentFlow flow, String txnRef) {
-        if (flow == PaymentFlow.PAY) {
-            params.put("vnp_TxnRef", txnRef);
-        } else {
-            params.put("vnp_txn_ref", txnRef);
-        }
+        params.put(CallbackFields.txnRefKey(flow), txnRef);
     }
 
     private static void putAmount(Map<String, String> params, PaymentFlow flow, long amountMinor) {
-        if (flow == PaymentFlow.PAY) {
-            params.put("vnp_Amount", String.valueOf(amountMinor));
-        } else {
-            params.put("vnp_amount", String.valueOf(amountMinor));
-        }
+        params.put(CallbackFields.amountKey(flow), String.valueOf(amountMinor));
     }
 
     private static String randomTxnNo() {

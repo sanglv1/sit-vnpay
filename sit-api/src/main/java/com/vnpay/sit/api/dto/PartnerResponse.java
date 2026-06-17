@@ -20,6 +20,7 @@ public class PartnerResponse {
     private final String ipnUrl;
     private final String note;
     private final boolean active;
+    private final String createdByEmail;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
@@ -35,6 +36,7 @@ public class PartnerResponse {
                 .ipnUrl(entity.getIpnUrl())
                 .note(entity.getNote())
                 .active(entity.isActive())
+                .createdByEmail(entity.getCreatedByEmail())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

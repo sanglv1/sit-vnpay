@@ -8,7 +8,6 @@ import com.vnpay.sit.partner.dto.PartnerForm;
 import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.partner.service.PartnerService;
 import jakarta.validation.Valid;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,11 +31,10 @@ public class PartnerApiController {
             @AuthenticationPrincipal SitUserPrincipal principal
     ) {
         List<PartnerConfig> partners = Boolean.TRUE.equals(active)
-                ? partnerService.findAllActive()
-                : partnerService.findAll();
-        boolean includeSecret = accessControlService.isAdmin(principal);
+                ? partnerService.findAllActiveForPrincipal(principal)
+                : partnerService.findAllForPrincipal(principal);
         List<PartnerResponse> data = partners.stream()
-                .map(p -> PartnerResponse.from(p, includeSecret))
+                .map(p -> PartnerResponse.from(p, accessControlService.canViewPartnerSecret(p, principal)))
                 .toList();
         return ApiResponse.ok(data);
     }
@@ -46,31 +44,40 @@ public class PartnerApiController {
             @PathVariable Long id,
             @AuthenticationPrincipal SitUserPrincipal principal
     ) {
-        PartnerConfig partner = partnerService.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đối tác"));
-        return ApiResponse.ok(PartnerResponse.from(partner, accessControlService.isAdmin(principal)));
+        PartnerConfig partner = partnerService.requireAccessible(id, principal);
+        return ApiResponse.ok(PartnerResponse.from(
+                partner, accessControlService.canViewPartnerSecret(partner, principal)));
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<PartnerResponse> create(@Valid @RequestBody PartnerForm form) {
+    public ApiResponse<PartnerResponse> create(
+            @Valid @RequestBody PartnerForm form,
+            @AuthenticationPrincipal SitUserPrincipal principal
+    ) {
         form.setId(null);
-        PartnerConfig saved = partnerService.save(form);
-        return ApiResponse.ok(PartnerResponse.from(saved, true));
+        PartnerConfig saved = partnerService.save(form, principal);
+        return ApiResponse.ok(PartnerResponse.from(
+                saved, accessControlService.canViewPartnerSecret(saved, principal)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<PartnerResponse> update(@PathVariable Long id, @Valid @RequestBody PartnerForm form) {
+    public ApiResponse<PartnerResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody PartnerForm form,
+            @AuthenticationPrincipal SitUserPrincipal principal
+    ) {
         form.setId(id);
-        PartnerConfig saved = partnerService.save(form);
-        return ApiResponse.ok(PartnerResponse.from(saved, true));
+        PartnerConfig saved = partnerService.save(form, principal);
+        return ApiResponse.ok(PartnerResponse.from(
+                saved, accessControlService.canViewPartnerSecret(saved, principal)));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        partnerService.delete(id);
+    public ApiResponse<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal SitUserPrincipal principal
+    ) {
+        partnerService.delete(id, principal);
         return ApiResponse.ok(null);
     }
 }

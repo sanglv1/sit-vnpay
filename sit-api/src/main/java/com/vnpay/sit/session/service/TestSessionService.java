@@ -2,20 +2,25 @@ package com.vnpay.sit.session.service;
 
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
-import com.vnpay.sit.api.dto.PageResponse;
 import com.vnpay.sit.api.dto.TestSessionResponse;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.partner.service.PartnerService;
+import com.vnpay.sit.session.SessionCompletionFilter;
 import com.vnpay.sit.session.dto.CreateSessionForm;
+import com.vnpay.sit.session.dto.SaveSessionTestInputForm;
 import com.vnpay.sit.session.entity.TestSession;
 import com.vnpay.sit.session.repository.TestSessionRepository;
-import com.vnpay.sit.testrun.entity.TestRun;
+import com.vnpay.sit.session.repository.TestSessionSpecifications;
 import com.vnpay.sit.testrun.repository.TestRunRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -44,21 +49,41 @@ public class TestSessionService {
         this.accessControlService = accessControlService;
     }
 
-    public Page<TestSessionResponse> findAll(Pageable pageable, SitUserPrincipal principal) {
-        Page<TestSession> sessions = accessControlService.isAdmin(principal)
-                ? sessionRepository.findAllByOrderByCreatedAtDesc(pageable)
-                : sessionRepository.findByCreatedByEmailIgnoreCaseOrderByCreatedAtDesc(
-                        accessControlService.currentUserEmail(principal),
-                        pageable
-                );
-        return sessions.map(this::toResponse);
+    public Page<TestSessionResponse> findAll(
+            Pageable pageable,
+            String q,
+            SessionCompletionFilter completion,
+            SitUserPrincipal principal
+    ) {
+        Specification<TestSession> spec;
+        if (accessControlService.isAdmin(principal)) {
+            spec = Specification.where(null);
+        } else {
+            spec = TestSessionSpecifications.ownedBy(accessControlService.currentUserEmail(principal));
+        }
+        Specification<TestSession> bySearch = TestSessionSpecifications.matchesSearch(q);
+        if (bySearch != null) {
+            spec = spec.and(bySearch);
+        }
+        Specification<TestSession> byCompletion = TestSessionSpecifications.matchesCompletion(completion, AUTO_CASES);
+        if (byCompletion != null) {
+            spec = spec.and(byCompletion);
+        }
+
+        Pageable sorted = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+        Page<TestSession> page = sessionRepository.findAll(spec, sorted);
+        return mapToResponses(page);
     }
 
     public TestSessionResponse getById(Long id, SitUserPrincipal principal) {
         TestSession session = sessionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiên kiểm thử"));
         accessControlService.requireSessionAccess(session, principal);
-        return toResponse(session);
+        return toResponse(session, countPassedAutoCases(List.of(session.getId())));
     }
 
     public Optional<TestSession> findEntityById(Long id) {
@@ -66,9 +91,8 @@ public class TestSessionService {
     }
 
     @Transactional
-    public TestSessionResponse create(CreateSessionForm form, String createdByEmail) {
-        PartnerConfig partner = partnerService.findById(form.getPartnerId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đối tác"));
+    public TestSessionResponse create(CreateSessionForm form, String createdByEmail, SitUserPrincipal principal) {
+        PartnerConfig partner = partnerService.requireAccessible(form.getPartnerId(), principal);
 
         TestSession session = new TestSession();
         session.setPartnerId(partner.getId());
@@ -76,20 +100,86 @@ public class TestSessionService {
         session.setTmnCode(partner.getTmnCode());
         session.setNote(form.getNote());
         session.setStatus("OPEN");
-        session.setCreatedByEmail(createdByEmail);
+        if (StringUtils.hasText(createdByEmail)) {
+            session.setCreatedByEmail(createdByEmail.trim().toLowerCase());
+        }
 
-        return toResponse(sessionRepository.save(session));
+        TestSession saved = sessionRepository.save(session);
+        return toResponse(saved, java.util.Map.of(saved.getId(), 0));
     }
 
-    private TestSessionResponse toResponse(TestSession session) {
-        List<TestRun> runs = testRunRepository.findBySessionIdOrderByCreatedAtDesc(session.getId());
-        int autoTotal = AUTO_CASES.size();
-        long autoPassed = runs.stream()
-                .filter(r -> AUTO_CASES.contains(r.getTestCase()))
-                .filter(TestRun::isPassed)
-                .map(TestRun::getTestCase)
-                .distinct()
-                .count();
-        return TestSessionResponse.from(session, (int) autoPassed, autoTotal);
+    @Transactional
+    public void saveTestInput(
+            Long id,
+            SaveSessionTestInputForm form,
+            SitUserPrincipal principal
+    ) {
+        TestSession session = sessionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiên kiểm thử"));
+        accessControlService.requireSessionAccess(session, principal);
+
+        if (form.getPendingTxnRef() != null) {
+            session.setPendingTxnRef(form.getPendingTxnRef().trim());
+        }
+        if (form.getPendingAmountVnd() != null) {
+            session.setPendingAmountVnd(form.getPendingAmountVnd());
+        }
+        if (form.getConfirmedTxnRef() != null) {
+            session.setConfirmedTxnRef(form.getConfirmedTxnRef().trim());
+        }
+        if (form.getConfirmedAmountVnd() != null) {
+            session.setConfirmedAmountVnd(form.getConfirmedAmountVnd());
+        }
+        if (form.getWrongAmountVnd() != null) {
+            session.setWrongAmountVnd(form.getWrongAmountVnd());
+        }
+
+        sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void mergeTestInputFromRun(
+            Long sessionId,
+            String pendingTxnRef,
+            long pendingAmountVnd,
+            Long wrongAmountVnd,
+            SitUserPrincipal principal
+    ) {
+        if (sessionId == null || !StringUtils.hasText(pendingTxnRef)) {
+            return;
+        }
+        TestSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiên kiểm thử"));
+        accessControlService.requireSessionAccess(session, principal);
+        session.setPendingTxnRef(pendingTxnRef.trim());
+        session.setPendingAmountVnd(pendingAmountVnd);
+        if (wrongAmountVnd != null) {
+            session.setWrongAmountVnd(wrongAmountVnd);
+        }
+        sessionRepository.save(session);
+    }
+
+    private Page<TestSessionResponse> mapToResponses(Page<TestSession> page) {
+        List<Long> sessionIds = page.getContent().stream().map(TestSession::getId).toList();
+        java.util.Map<Long, Integer> passedBySession = countPassedAutoCases(sessionIds);
+        return page.map(session -> toResponse(session, passedBySession));
+    }
+
+    private TestSessionResponse toResponse(TestSession session, java.util.Map<Long, Integer> passedBySession) {
+        int autoPassed = passedBySession.getOrDefault(session.getId(), 0);
+        return TestSessionResponse.from(session, autoPassed, AUTO_CASES.size());
+    }
+
+    private java.util.Map<Long, Integer> countPassedAutoCases(List<Long> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<Long, Integer> result = new java.util.HashMap<>();
+        for (Object[] row : testRunRepository.countDistinctPassedAutoCasesBySessionIds(sessionIds, AUTO_CASES)) {
+            Long sessionId = (Long) row[0];
+            int count = ((Number) row[1]).intValue();
+            result.put(sessionId, count);
+        }
+        return result;
     }
 }

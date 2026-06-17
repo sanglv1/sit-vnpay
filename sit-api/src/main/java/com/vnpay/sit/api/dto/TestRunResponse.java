@@ -30,8 +30,13 @@ public class TestRunResponse {
     private final Long durationMs;
     private final String errorMessage;
     private final LocalDateTime createdAt;
+    private final String sessionCreatedByEmail;
 
     public static TestRunResponse from(TestRun run) {
+        return from(run, null);
+    }
+
+    public static TestRunResponse from(TestRun run, String sessionCreatedByEmail) {
         return TestRunResponse.builder()
                 .id(run.getId())
                 .partnerId(run.getPartnerId())
@@ -51,6 +56,7 @@ public class TestRunResponse {
                 .durationMs(run.getDurationMs())
                 .errorMessage(run.getErrorMessage())
                 .createdAt(run.getCreatedAt())
+                .sessionCreatedByEmail(sessionCreatedByEmail)
                 .build();
     }
 }

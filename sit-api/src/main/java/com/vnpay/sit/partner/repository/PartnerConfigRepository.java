@@ -10,7 +10,24 @@ public interface PartnerConfigRepository extends JpaRepository<PartnerConfig, Lo
 
     List<PartnerConfig> findByActiveTrueOrderByNameAsc();
 
+    List<PartnerConfig> findByActiveTrueAndCreatedByEmailIgnoreCaseOrderByNameAsc(String createdByEmail);
+
+    List<PartnerConfig> findByCreatedByEmailIgnoreCaseOrderByNameAsc(String createdByEmail);
+
     List<PartnerConfig> findByFlowAndActiveTrueOrderByNameAsc(PaymentFlow flow);
+
+    long countByActiveTrueAndCreatedByEmailIgnoreCase(String createdByEmail);
+
+    long countByActiveTrueAndCreatedByEmailIgnoreCaseAndCreatedAtGreaterThanEqual(
+            String createdByEmail,
+            java.time.LocalDateTime createdAt
+    );
+
+    long countByActiveTrueAndCreatedByEmailIgnoreCaseAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            String createdByEmail,
+            java.time.LocalDateTime from,
+            java.time.LocalDateTime to
+    );
 
     long countByActiveTrueAndCreatedAtGreaterThanEqual(java.time.LocalDateTime createdAt);
 

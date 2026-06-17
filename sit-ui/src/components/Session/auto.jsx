@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
@@ -10,9 +10,8 @@ import {
   usePrepareMerchantOrderMutation,
   useRunIpnSuiteMutation,
   useRunTestMutation,
-  useSessionQuery,
-  useTestHistoryQuery,
-  useTestMetadataQuery,
+  useSaveSessionTestInputMutation,
+  useSessionWorkspaceQuery,
 } from '../../api/hooks';
 import { appActions } from '../../stores';
 
@@ -24,6 +23,53 @@ const IPN_LOGIC = [
   { step: 5, check: 'Kiểm tra kết quả giao dịch', param: 'vnp_ResponseCode / vnp_TransactionStatus', caseNo: 'Case 5', rsp: '00' },
 ];
 
+const PENDING_ORDER_CASES = new Set(['WRONG_AMOUNT', 'SUCCESS', 'FAILED']);
+
+/** Chọn txnRef/amount theo case — Case 4 ưu tiên đơn đã SUCCESS nếu có. */
+const resolveOrderForCase = (caseValue, values) => {
+  const pendingTxnRef = values.pendingTxnRef?.trim() || '';
+  const pendingAmountVnd = Number(values.pendingAmountVnd) || 100000;
+  const confirmedTxnRef = values.confirmedTxnRef?.trim() || '';
+  const confirmedAmountVnd = Number(values.confirmedAmountVnd) || pendingAmountVnd;
+
+  if (caseValue === 'ORDER_ALREADY_CONFIRMED' && confirmedTxnRef) {
+    return { txnRef: confirmedTxnRef, amountVnd: confirmedAmountVnd };
+  }
+  if (pendingTxnRef) {
+    return { txnRef: pendingTxnRef, amountVnd: pendingAmountVnd };
+  }
+  if (caseValue === 'INVALID_HASH' || caseValue === 'ORDER_NOT_FOUND') {
+    return { txnRef: 'SIT_DUMMY', amountVnd: pendingAmountVnd };
+  }
+  return { txnRef: '', amountVnd: pendingAmountVnd };
+};
+
+const validateOrderForCase = (caseValue, values) => {
+  const { txnRef } = resolveOrderForCase(caseValue, values);
+  if (PENDING_ORDER_CASES.has(caseValue) && !values.pendingTxnRef?.trim()) {
+    return 'Nhập mã giao dịch đơn chờ thanh toán (PENDING)';
+  }
+  if (caseValue === 'ORDER_ALREADY_CONFIRMED') {
+    const hasConfirmed = Boolean(values.confirmedTxnRef?.trim());
+    const hasPending = Boolean(values.pendingTxnRef?.trim());
+    if (!hasConfirmed && !hasPending) {
+      return 'Nhập txnRef đơn đã thanh toán (SUCCESS) hoặc đơn PENDING đã chạy Case 5 trước đó';
+    }
+  }
+  if (!txnRef) {
+    return 'Nhập mã giao dịch (txnRef)';
+  }
+  return null;
+};
+
+const toTestInputPayload = (values) => ({
+  pendingTxnRef: values.pendingTxnRef?.trim() ?? '',
+  pendingAmountVnd: values.pendingAmountVnd ? Number(values.pendingAmountVnd) : null,
+  confirmedTxnRef: values.confirmedTxnRef?.trim() ?? '',
+  confirmedAmountVnd: values.confirmedAmountVnd ? Number(values.confirmedAmountVnd) : null,
+  wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
+});
+
 const SessionAuto = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -31,50 +77,85 @@ const SessionAuto = () => {
   const [runningCase, setRunningCase] = useState(null);
   const { register, handleSubmit, watch, getValues, reset, setValue } = useForm();
   const testCase = watch('testCase');
+  const initializedSessionId = useRef(null);
+  const formReadyRef = useRef(false);
 
-  const { data: session } = useSessionQuery(sessionId);
-  const { data: metadata } = useTestMetadataQuery();
-  const { data: history } = useTestHistoryQuery({ sessionId, size: 50 }, { enabled: Boolean(sessionId) });
+  const { data: workspace } = useSessionWorkspaceQuery(sessionId);
+  const session = workspace?.session;
+  const metadata = workspace ? { testCases: workspace.testCases } : null;
   const runTest = useRunTestMutation(sessionId);
   const runIpnSuite = useRunIpnSuiteMutation(sessionId);
   const prepareOrder = usePrepareMerchantOrderMutation();
+  const saveTestInput = useSaveSessionTestInputMutation(sessionId);
+
+  useEffect(() => {
+    initializedSessionId.current = null;
+    formReadyRef.current = false;
+  }, [sessionId]);
 
   const runsByCase = useMemo(
-    () => latestRunsByCase(history?.content),
-    [history],
+    () => latestRunsByCase(workspace?.latestRuns),
+    [workspace?.latestRuns],
   );
 
   useEffect(() => {
     if (!session || !metadata) return;
+    if (initializedSessionId.current === session.id) return;
+
+    initializedSessionId.current = session.id;
+    formReadyRef.current = false;
+
     reset({
       partnerId: session.partnerId,
       sessionId: session.id,
-      txnRef: metadata.defaultTxnRef,
-      amountVnd: 100000,
+      pendingTxnRef: session.pendingTxnRef || '',
+      pendingAmountVnd: session.pendingAmountVnd ?? '',
+      confirmedTxnRef: session.confirmedTxnRef || '',
+      confirmedAmountVnd: session.confirmedAmountVnd ?? '',
+      wrongAmountVnd: session.wrongAmountVnd ?? '',
       testCase: 'SUCCESS',
+    });
+
+    requestAnimationFrame(() => {
+      formReadyRef.current = true;
     });
   }, [session, metadata, reset]);
 
-  const buildPayload = (values) => ({
-    partnerId: Number(session.partnerId),
-    sessionId: Number(sessionId),
-    callbackType: 'IPN',
-    testCase: values.testCase,
-    txnRef: values.txnRef,
-    amountVnd: Number(values.amountVnd),
-    wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
-  });
+  const saveCurrentInput = () => {
+    if (!formReadyRef.current) return;
+    saveTestInput.mutate(toTestInputPayload(getValues()));
+  };
+
+  const persistTestInput = async () => {
+    if (!sessionId) return;
+    await saveTestInput.mutateAsync(toTestInputPayload(getValues()));
+  };
+
+  const buildPayload = (values, caseValue) => {
+    const order = resolveOrderForCase(caseValue ?? values.testCase, values);
+    return {
+      partnerId: Number(session.partnerId),
+      sessionId: Number(sessionId),
+      callbackType: 'IPN',
+      testCase: caseValue ?? values.testCase,
+      txnRef: order.txnRef,
+      amountVnd: order.amountVnd,
+      wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
+    };
+  };
 
   const runSingleCase = async (caseValue) => {
     const values = getValues();
-    if (!values.txnRef) {
-      dispatch(appActions.flash('Nhập mã giao dịch (txnRef)', 'danger'));
+    const validationError = validateOrderForCase(caseValue, values);
+    if (validationError) {
+      dispatch(appActions.flash(validationError, 'danger'));
       return;
     }
     setRunningCase(caseValue);
     try {
+      await persistTestInput();
       const result = await runTest.mutateAsync({
-        ...buildPayload({ ...values, testCase: caseValue }),
+        ...buildPayload(values, caseValue),
       });
       dispatch(appActions.flash(
         result.passed ? 'Kiểm thử PASS' : 'Kiểm thử FAIL',
@@ -93,17 +174,22 @@ const SessionAuto = () => {
 
   const onRunIpnSuite = async () => {
     const values = getValues();
-    if (!values.txnRef) {
-      dispatch(appActions.flash('Nhập mã giao dịch (txnRef)', 'danger'));
+    if (!values.pendingTxnRef?.trim()) {
+      dispatch(appActions.flash('Nhập mã giao dịch đơn chờ thanh toán (PENDING) để chạy suite', 'danger'));
+      return;
+    }
+    if (!values.pendingAmountVnd || Number(values.pendingAmountVnd) < 1) {
+      dispatch(appActions.flash('Nhập số tiền đơn chờ thanh toán (PENDING) để chạy suite', 'danger'));
       return;
     }
     try {
+      await persistTestInput();
       const result = await runIpnSuite.mutateAsync({
         data: {
           partnerId: Number(session.partnerId),
           sessionId: Number(sessionId),
-          txnRef: values.txnRef,
-          amountVnd: Number(values.amountVnd || 100000),
+          txnRef: values.pendingTxnRef.trim(),
+          amountVnd: Number(values.pendingAmountVnd),
           wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
         },
         config: { timeout: 180000 },
@@ -119,16 +205,29 @@ const SessionAuto = () => {
   };
 
   const onPrepareMerchantOrder = async () => {
-    const amountVnd = Number(getValues('amountVnd') || 100000);
+    const amountVnd = Number(getValues('pendingAmountVnd'));
+    if (!amountVnd || amountVnd < 1) {
+      dispatch(appActions.flash('Nhập số tiền đơn chờ thanh toán (PENDING) trước khi tạo đơn', 'danger'));
+      return;
+    }
     try {
       const result = await prepareOrder.mutateAsync({
         partnerId: Number(session.partnerId),
         amountVnd,
       });
-      setValue('txnRef', result.txnRef);
-      setValue('amountVnd', result.amountVnd);
+      setValue('pendingTxnRef', result.txnRef);
+      setValue('pendingAmountVnd', result.amountVnd);
+      await saveTestInput.mutateAsync({
+        pendingTxnRef: result.txnRef,
+        pendingAmountVnd: result.amountVnd,
+        confirmedTxnRef: getValues('confirmedTxnRef')?.trim() ?? '',
+        confirmedAmountVnd: getValues('confirmedAmountVnd')
+          ? Number(getValues('confirmedAmountVnd'))
+          : null,
+        wrongAmountVnd: getValues('wrongAmountVnd') ? Number(getValues('wrongAmountVnd')) : null,
+      });
       dispatch(appActions.flash(
-        `Đã tạo đơn test: txnRef=${result.txnRef}, amount=${result.amountVnd} VND`,
+        `Đã tạo đơn PENDING: txnRef=${result.txnRef}, amount=${result.amountVnd} VND`,
         'success',
       ));
     } catch {
@@ -154,24 +253,31 @@ const SessionAuto = () => {
       <div className="card-body pt-0">
         <h4 className="card-title" style={{ fontSize: 15 }}>Logic điều kiện kiểm tra ở đầu IPN</h4>
         <div className="table-wrap mb-3">
-          <table className="table table-striped">
+          <table className="table table-striped data-table">
+            <colgroup>
+              <col className="col-step" />
+              <col />
+              <col />
+              <col className="col-case" />
+              <col className="col-rsp" />
+            </colgroup>
             <thead>
               <tr>
-                <th>Bước</th>
+                <th className="text-center">Bước</th>
                 <th>Điều kiện kiểm tra</th>
                 <th>Tham số liên quan</th>
-                <th>Case</th>
-                <th>RspCode</th>
+                <th className="text-center">Case</th>
+                <th className="text-center">RspCode</th>
               </tr>
             </thead>
             <tbody>
               {IPN_LOGIC.map((r) => (
                 <tr key={r.step}>
-                  <td>{r.step}</td>
+                  <td className="text-center">{r.step}</td>
                   <td>{r.check}</td>
                   <td><code>{r.param}</code></td>
-                  <td>{r.caseNo}</td>
-                  <td><strong>{r.rsp}</strong></td>
+                  <td className="text-center">{r.caseNo}</td>
+                  <td className="text-center"><strong>{r.rsp}</strong></td>
                 </tr>
               ))}
             </tbody>
@@ -207,25 +313,26 @@ else
         <div className="alert alert-danger mb-3" style={{ fontSize: 13 }}>
           <strong>Lưu ý:</strong>
           {' '}
-          Case 97 và 01 không cần đơn hàng thật. Các case còn lại (04, 00, 02…) yêu cầu merchant
+          Case 1 (97) và Case 2 (01) không cần đơn thật. Case 3, 5, 6 và
           {' '}
-          <strong>đã có đơn</strong>
+          <strong>suite tự động</strong>
           {' '}
-          với đúng
+          dùng
           {' '}
-          <code>txnRef</code>
+          <strong>đơn PENDING</strong>
           {' '}
-          và
+          (chưa thanh toán xong). Case 4 chạy lẻ nên dùng
           {' '}
-          <strong>số tiền khớp</strong>
-          . Nếu merchant trả
+          <strong>đơn đã SUCCESS</strong>
+          ; khi chạy suite, Case 4 tự dùng cùng đơn PENDING sau Case 5.
+          Merchant trả
           {' '}
           <code>01</code>
           {' '}
-          → đơn chưa tồn tại hoặc sai
+          → sai
           {' '}
           <code>txnRef</code>
-          /amount.
+          /amount hoặc đơn chưa tồn tại.
         </div>
 
         {hasUnexpectedOrderNotFound && (
@@ -238,17 +345,16 @@ else
             {' '}
             <strong>Tạo đơn test trên merchant</strong>
             {' '}
-            hoặc tạo đơn thủ công trên merchant rồi nhập lại
+            hoặc tạo đơn PENDING trên merchant rồi nhập lại ô
             {' '}
-            <code>txnRef</code>
-            {' '}
-            + số tiền.
+            <strong>Đơn chờ thanh toán</strong>
+            .
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} onBlur={saveCurrentInput}>
           <input type="hidden" {...register('partnerId')} />
-          <div className="row">
+          <div className="row mb-3">
             <div className="col-lg-4">
               <label className="form-label">Test case (chạy đơn lẻ)</label>
               <select className="form-select" {...register('testCase', { required: true })}>
@@ -260,32 +366,76 @@ else
               </select>
             </div>
             <div className="col-lg-4">
-              <label className="form-label">Mã giao dịch (txnRef) *</label>
-              <div className="d-flex gap-2">
-                <input className="form-control" {...register('txnRef', { required: 'Bắt buộc' })} />
-                <button
-                  type="button"
-                  className="btn btn-light-primary"
-                  style={{ whiteSpace: 'nowrap' }}
-                  onClick={onPrepareMerchantOrder}
-                  title="Gọi merchant tạo đơn test in-memory (demo hỗ trợ /api/sit/prepare-order)"
-                >
-                  Tạo đơn test
-                </button>
-              </div>
-            </div>
-            <div className="col-lg-4">
-              <label className="form-label">Số tiền (VND) *</label>
-              <input type="number" className="form-control" {...register('amountVnd', { required: true, min: 1 })} />
-            </div>
-            <div className="col-lg-4">
               <label className="form-label">Số tiền sai (VND){testCase === 'WRONG_AMOUNT' ? ' *' : ''}</label>
               <input
                 type="number"
                 className="form-control"
-                placeholder="Mặc định: amount + 1000"
+                placeholder="Mặc định: amount PENDING + 1000"
                 {...register('wrongAmountVnd', { required: testCase === 'WRONG_AMOUNT' ? 'Nhập số tiền sai' : false })}
               />
+            </div>
+          </div>
+
+          <div className="order-input-group mb-3">
+            <h4 className="order-input-title">Đơn chờ thanh toán (PENDING)</h4>
+            <p className="order-input-desc">
+              Dùng cho Case 3, 5, 6 và chạy suite tự động. Tạo đơn trên merchant (có thể dừng ở OTP).
+            </p>
+            <div className="row">
+              <div className="col-lg-5">
+                <label className="form-label">Mã giao dịch (txnRef) *</label>
+                <div className="d-flex gap-2">
+                  <input
+                    className="form-control"
+                    placeholder="VD: ORDER20250616001"
+                    {...register('pendingTxnRef')}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-light-primary"
+                    style={{ whiteSpace: 'nowrap' }}
+                    onClick={onPrepareMerchantOrder}
+                    title="Gọi merchant tạo đơn test (endpoint /api/sit/prepare-order)"
+                  >
+                    Tạo đơn test
+                  </button>
+                </div>
+              </div>
+              <div className="col-lg-3">
+                <label className="form-label">Số tiền (VND) *</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="VD: 100000"
+                  {...register('pendingAmountVnd', { required: true, min: 1 })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="order-input-group order-input-group-success mb-3">
+            <h4 className="order-input-title">Đơn đã thanh toán thành công (SUCCESS)</h4>
+            <p className="order-input-desc">
+              Dùng khi chạy <strong>Case 4</strong> đơn lẻ. Để trống nếu chạy suite (Case 4 dùng đơn PENDING sau Case 5).
+            </p>
+            <div className="row">
+              <div className="col-lg-5">
+                <label className="form-label">Mã giao dịch (txnRef)</label>
+                <input
+                  className="form-control"
+                  placeholder="TxnRef đơn đã SUCCESS trên merchant"
+                  {...register('confirmedTxnRef')}
+                />
+              </div>
+              <div className="col-lg-3">
+                <label className="form-label">Số tiền (VND)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="VD: 100000"
+                  {...register('confirmedAmountVnd', { min: 1 })}
+                />
+              </div>
             </div>
           </div>
           <div className="form-footer">

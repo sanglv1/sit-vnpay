@@ -44,9 +44,26 @@ class CallbackParamBuilderTest {
                 .containsEntry("vnp_Amount", "5000000");
     }
 
+    @Test
+    void instalment_success_shouldUsePascalCaseRequiredFields() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.INSTALMENT, TestCaseType.SUCCESS, "TMN05", "INS001", 1_000_000L, null);
+
+        assertThat(params)
+                .containsEntry("vnp_TmnCode", "TMN05")
+                .containsEntry("vnp_TxnRef", "INS001")
+                .containsEntry("vnp_Amount", "100000000")
+                .containsEntry("vnp_ResponseCode", "00")
+                .containsEntry("vnp_TransactionStatus", "00")
+                .containsEntry("vnp_BankCode", "VISA")
+                .containsEntry("vnp_OrderInfo", "SIT test INS001");
+        assertThat(params).doesNotContainKeys(
+                "vnp_tmn_code", "vnp_txn_ref", "vnp_amount", "vnp_installment_term");
+    }
+
     @ParameterizedTest
-    @EnumSource(value = PaymentFlow.class, names = {"TOKEN", "RECURRING", "INSTALMENT"})
-    void nonPayFlows_shouldUseSnakeCaseFields(PaymentFlow flow) {
+    @EnumSource(value = PaymentFlow.class, names = {"TOKEN", "RECURRING"})
+    void snakeCaseFlows_shouldUseSnakeCaseCoreFields(PaymentFlow flow) {
         Map<String, String> params = CallbackParamBuilder.build(
                 flow, TestCaseType.SUCCESS, "TMN02", "TXN100", 200_000L, null);
 
@@ -55,12 +72,15 @@ class CallbackParamBuilderTest {
                 .containsEntry("vnp_txn_ref", "TXN100")
                 .containsEntry("vnp_amount", "20000000")
                 .containsEntry("vnp_response_code", "00")
-                .containsEntry("vnp_transaction_status", "00");
+                .containsEntry("vnp_transaction_status", "00")
+                .containsEntry("vnp_app_user_id", "SIT_USER")
+                .containsEntry("vnp_txn_desc", "SIT test TXN100")
+                .containsEntry("vnp_curr_code", "VND");
         assertThat(params).doesNotContainKeys("vnp_TmnCode", "vnp_TxnRef", "vnp_Amount");
     }
 
     @Test
-    void token_success_shouldIncludeTokenFields() {
+    void token_success_shouldIncludeTokenCommandAndOptionalFields() {
         Map<String, String> params = CallbackParamBuilder.build(
                 PaymentFlow.TOKEN, TestCaseType.SUCCESS, "TMN03", "TOK001", 75_000L, null);
 
@@ -71,27 +91,28 @@ class CallbackParamBuilderTest {
     }
 
     @Test
-    void token_nonSuccess_shouldOmitTokenFields() {
+    void token_nonSuccess_shouldOmitOptionalTokenFields() {
         Map<String, String> params = CallbackParamBuilder.build(
                 PaymentFlow.TOKEN, TestCaseType.INVALID_HASH, "TMN03", "TOK002", 75_000L, null);
 
         assertThat(params).doesNotContainKeys("vnp_token", "vnp_card_number");
+        assertThat(params)
+                .containsEntry("vnp_command", "token_pay")
+                .containsEntry("vnp_app_user_id", "SIT_USER")
+                .containsEntry("vnp_curr_code", "VND");
     }
 
     @Test
-    void recurring_success_shouldIncludeRecurringId() {
+    void recurring_success_shouldIncludeRecurringCommandFields() {
         Map<String, String> params = CallbackParamBuilder.build(
                 PaymentFlow.RECURRING, TestCaseType.SUCCESS, "TMN04", "REC001", 300_000L, null);
 
-        assertThat(params).containsEntry("vnp_recurring_id", "REC_REC001");
-    }
-
-    @Test
-    void instalment_shouldIncludeTerm() {
-        Map<String, String> params = CallbackParamBuilder.build(
-                PaymentFlow.INSTALMENT, TestCaseType.SUCCESS, "TMN05", "INS001", 1_000_000L, null);
-
-        assertThat(params).containsEntry("vnp_installment_term", "3");
+        assertThat(params)
+                .containsEntry("vnp_command", "recurring_pay")
+                .containsEntry("vnp_app_user_id", "SIT_USER")
+                .containsEntry("vnp_txn_desc", "SIT test REC001")
+                .containsEntry("vnp_curr_code", "VND");
+        assertThat(params).doesNotContainKey("vnp_recurring_id");
     }
 
     @Test
@@ -100,9 +121,12 @@ class CallbackParamBuilderTest {
                 PaymentFlow.PAY, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG001", 100_000L, null);
         Map<String, String> tokenParams = CallbackParamBuilder.build(
                 PaymentFlow.TOKEN, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG002", 100_000L, null);
+        Map<String, String> instalmentParams = CallbackParamBuilder.build(
+                PaymentFlow.INSTALMENT, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG003", 100_000L, null);
 
         assertThat(payParams.get("vnp_TxnRef")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG001");
         assertThat(tokenParams.get("vnp_txn_ref")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG002");
+        assertThat(instalmentParams.get("vnp_TxnRef")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG003");
     }
 
     @Test
@@ -111,9 +135,12 @@ class CallbackParamBuilderTest {
                 PaymentFlow.PAY, TestCaseType.WRONG_AMOUNT, "TMN01", "PAY003", 100_000L, 99_000L);
         Map<String, String> tokenParams = CallbackParamBuilder.build(
                 PaymentFlow.TOKEN, TestCaseType.WRONG_AMOUNT, "TMN01", "TOK003", 100_000L, 99_000L);
+        Map<String, String> instalmentParams = CallbackParamBuilder.build(
+                PaymentFlow.INSTALMENT, TestCaseType.WRONG_AMOUNT, "TMN01", "INS003", 100_000L, 99_000L);
 
         assertThat(payParams).containsEntry("vnp_Amount", "9900000");
         assertThat(tokenParams).containsEntry("vnp_amount", "9900000");
+        assertThat(instalmentParams).containsEntry("vnp_Amount", "9900000");
     }
 
     @Test

@@ -1,13 +1,12 @@
 package com.vnpay.sit.api;
 
-import com.vnpay.sit.api.dto.ApiResponse;
-import com.vnpay.sit.api.dto.PageResponse;
-import com.vnpay.sit.api.dto.TestSessionResponse;
-import com.vnpay.sit.api.dto.TestSuiteResponse;
-import com.vnpay.sit.auth.SitUserPrincipal;
-import com.vnpay.sit.session.dto.CreateSessionForm;
+import com.vnpay.sit.api.dto.*;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
+import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.session.SessionCompletionFilter;
+import com.vnpay.sit.session.dto.CreateSessionForm;
+import com.vnpay.sit.session.dto.SaveSessionTestInputForm;
 import com.vnpay.sit.session.service.TestSessionService;
 import com.vnpay.sit.export.MinutesExportService;
 import com.vnpay.sit.testrun.service.TestExecutionService;
@@ -46,9 +45,16 @@ public class TestSessionApiController {
     public ApiResponse<PageResponse<TestSessionResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String completion,
             @AuthenticationPrincipal SitUserPrincipal principal
     ) {
-        Page<TestSessionResponse> sessions = testSessionService.findAll(PageRequest.of(page, size), principal);
+        Page<TestSessionResponse> sessions = testSessionService.findAll(
+                PageRequest.of(page, size),
+                q,
+                SessionCompletionFilter.fromParam(completion),
+                principal
+        );
         PageResponse<TestSessionResponse> data = new PageResponse<>(
                 sessions.getContent(),
                 sessions.getNumber(),
@@ -72,8 +78,39 @@ public class TestSessionApiController {
             @Valid @RequestBody CreateSessionForm form,
             @AuthenticationPrincipal SitUserPrincipal principal
     ) {
-        String email = principal != null ? principal.getUsername() : null;
-        return ApiResponse.ok(testSessionService.create(form, email));
+        String email = accessControlService.currentUserEmail(principal);
+        return ApiResponse.ok(testSessionService.create(form, email, principal));
+    }
+
+    @PatchMapping("/{id}/test-input")
+    public ResponseEntity<Void> saveTestInput(
+            @PathVariable Long id,
+            @Valid @RequestBody SaveSessionTestInputForm form,
+            @AuthenticationPrincipal SitUserPrincipal principal
+    ) {
+        testSessionService.saveTestInput(id, form, principal);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/workspace")
+    public ApiResponse<SessionWorkspaceResponse> workspace(
+            @PathVariable Long id,
+            @AuthenticationPrincipal SitUserPrincipal principal
+    ) {
+        TestSessionResponse session = testSessionService.getById(id, principal);
+        return ApiResponse.ok(SessionWorkspaceResponse.builder()
+                .session(session)
+                .latestRuns(testExecutionService.findLatestRunsForSession(id, principal))
+                .testCases(toTestCaseOptions())
+                .build());
+    }
+
+    @GetMapping("/{id}/latest-runs")
+    public ApiResponse<java.util.List<TestRunResponse>> latestRuns(
+            @PathVariable Long id,
+            @AuthenticationPrincipal SitUserPrincipal principal
+    ) {
+        return ApiResponse.ok(testExecutionService.findLatestRunsForSession(id, principal));
     }
 
     @GetMapping("/{id}/suite-result")
@@ -113,5 +150,12 @@ public class TestSessionApiController {
                 .contentType(MediaType.parseMediaType(
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                 .body(exported.content());
+    }
+
+    private static java.util.List<EnumOption> toTestCaseOptions() {
+        return TestCaseType.autoIpnTestCases().stream()
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getExpectedRspCode(),
+                        v.getCaseCode(), v.getCheckOrder()))
+                .toList();
     }
 }

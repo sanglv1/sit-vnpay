@@ -53,7 +53,7 @@ public class ManualAcceptanceApiController {
         } else {
             accessControlService.requireAdmin(principal);
         }
-        ManualAcceptance saved = manualAcceptanceService.save(form);
+        ManualAcceptance saved = manualAcceptanceService.save(form, principal);
         return ApiResponse.ok(ManualAcceptanceResponse.from(saved));
     }
 }

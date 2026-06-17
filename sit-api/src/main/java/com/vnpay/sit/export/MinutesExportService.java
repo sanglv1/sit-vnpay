@@ -33,13 +33,14 @@ public class MinutesExportService {
             PartnerService partnerService,
             TestRunRepository testRunRepository,
             ManualAcceptanceService manualAcceptanceService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            MinutesViewModelMapper viewModelMapper
     ) {
         this.testSessionService = testSessionService;
         this.partnerService = partnerService;
         this.testRunRepository = testRunRepository;
         this.manualAcceptanceService = manualAcceptanceService;
-        this.documentFiller = new MinutesDocumentFiller(objectMapper);
+        this.documentFiller = new MinutesDocumentFiller(objectMapper, viewModelMapper);
     }
 
     public ExportedMinutes export(

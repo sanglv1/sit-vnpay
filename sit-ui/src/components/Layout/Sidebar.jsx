@@ -7,7 +7,6 @@ const MENU_ITEMS = [
   { path: '/partners', icon: 'ri-terminal-box-line', labelKey: 'menu.partners' },
   { path: '/users', icon: 'ri-user-settings-line', labelKey: 'menu.users', adminOnly: true },
   { path: '/sessions', icon: 'ri-file-list-3-line', labelKey: 'menu.sessions' },
-  { path: '/tests/history', icon: 'ri-history-line', labelKey: 'menu.history' },
   { path: '/guide', icon: 'ri-book-open-line', labelKey: 'menu.guide' },
 ];
 

@@ -1,6 +1,7 @@
 package com.vnpay.sit.auth;
 
 import com.vnpay.sit.model.UserRole;
+import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.session.entity.TestSession;
 import com.vnpay.sit.session.repository.TestSessionRepository;
 import com.vnpay.sit.testrun.entity.TestRun;
@@ -47,6 +48,28 @@ public class AccessControlService {
                 || !ownerEmail.equalsIgnoreCase(currentEmail.trim())) {
             throw new IllegalArgumentException("Bạn không có quyền truy cập phiên kiểm thử này");
         }
+    }
+
+    public void requirePartnerAccess(PartnerConfig partner, SitUserPrincipal principal) {
+        if (isAdmin(principal)) {
+            return;
+        }
+        String createdByEmail = partner.getCreatedByEmail();
+        String currentEmail = currentUserEmail(principal);
+        if (createdByEmail == null || currentEmail == null
+                || !createdByEmail.equalsIgnoreCase(currentEmail.trim())) {
+            throw new IllegalArgumentException("Bạn không có quyền truy cập Terminal này");
+        }
+    }
+
+    public boolean canViewPartnerSecret(PartnerConfig partner, SitUserPrincipal principal) {
+        if (isAdmin(principal)) {
+            return true;
+        }
+        String createdByEmail = partner.getCreatedByEmail();
+        String currentEmail = currentUserEmail(principal);
+        return createdByEmail != null && currentEmail != null
+                && createdByEmail.equalsIgnoreCase(currentEmail.trim());
     }
 
     public void requireTestRunAccess(TestRun run, SitUserPrincipal principal) {

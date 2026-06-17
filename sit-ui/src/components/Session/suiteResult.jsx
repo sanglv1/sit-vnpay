@@ -47,35 +47,44 @@ const SessionSuiteResult = () => {
               TxnRef: <strong>{suite.txnRef}</strong>
             </div>
           </div>
-          <div className="d-flex gap-2">
-            <button type="button" className="btn btn-light-primary btn-sm" onClick={() => navigate(`/sessions/${sessionId}/auto`)}>
-              Quay lại phiên
-            </button>
-            <Link to="/tests/history" className="btn btn-primary btn-sm">Lịch sử</Link>
-          </div>
+          <button type="button" className="btn btn-light-primary btn-sm" onClick={() => navigate(`/sessions/${sessionId}/auto`)}>
+            Quay lại phiên
+          </button>
         </div>
       </div>
       <div className="card-body">
         <div className="table-wrap">
-          <table className="table table-striped">
+          <table className="table table-striped data-table suite-result-table">
+            <colgroup>
+              <col className="col-step" />
+              <col className="col-badge" />
+              <col className="col-scenario" />
+              <col className="col-rsp-expected" />
+              <col className="col-rsp-actual" />
+              <col className="col-http" />
+              <col className="col-result" />
+              <col className="col-action" />
+            </colgroup>
             <thead>
               <tr>
-                <th>Bước</th>
-                <th>Case</th>
+                <th className="text-center">Bước</th>
+                <th className="text-center">Case</th>
                 <th>Kịch bản</th>
-                <th className="text-center">RspCode Kỳ vọng</th>
-                <th className="text-center">RspCode Thực tế</th>
+                <th className="text-center">RspCode<br />kỳ vọng</th>
+                <th className="text-center">RspCode<br />thực tế</th>
                 <th className="text-center">HTTP</th>
                 <th className="text-center">Kết quả</th>
-                <th />
+                <th className="text-end" />
               </tr>
             </thead>
             <tbody>
               {suite.steps.map((step) => (
                 <tr key={`${step.step}-${step.testCase}`}>
-                  <td>{step.step}</td>
-                  <td><span className="badge badge-info">Case {step.caseCode}</span></td>
-                  <td>{step.testCaseLabel}</td>
+                  <td className="text-center">{step.step}</td>
+                  <td className="text-center">
+                    <span className="badge badge-info">Case {step.caseCode}</span>
+                  </td>
+                  <td className="suite-scenario-cell" title={step.testCaseLabel}>{step.testCaseLabel}</td>
                   <td className="text-center"><strong>{step.expectedRspCode ?? '—'}</strong></td>
                   <td className="text-center">{step.actualRspCode ?? '—'}</td>
                   <td className="text-center">{step.httpStatus ?? '—'}</td>
@@ -84,7 +93,7 @@ const SessionSuiteResult = () => {
                       {step.passed ? 'PASS' : 'FAIL'}
                     </span>
                   </td>
-                  <td>
+                  <td className="text-end">
                     {step.testRunId && (
                       <Link to={`/tests/${step.testRunId}`} className="btn btn-icon" title="Chi tiết">
                         <i className="ri-eye-line text-primary" />

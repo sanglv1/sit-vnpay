@@ -43,7 +43,17 @@ class CallbackSignerTest {
   @Test
   void pay_hashFieldName() {
     assertThat(CallbackSigner.hashFieldFor(PaymentFlow.PAY)).isEqualTo("vnp_SecureHash");
+    assertThat(CallbackSigner.hashFieldFor(PaymentFlow.INSTALMENT)).isEqualTo("vnp_SecureHash");
     assertThat(CallbackSigner.hashFieldFor(PaymentFlow.TOKEN)).isEqualTo("vnp_secure_hash");
+  }
+
+  @Test
+  void instalment_sign_shouldUsePascalCaseHashField() {
+    Map<String, String> params = CallbackParamBuilder.build(
+        PaymentFlow.INSTALMENT, TestCaseType.SUCCESS, "TMN01", "INS001", 100_000L, null);
+    CallbackSigner.attachHash(params, SECRET, PaymentFlow.INSTALMENT);
+    assertThat(params).containsKey("vnp_SecureHash");
+    assertThat(params.get("vnp_SecureHash")).hasSize(128);
   }
 
   @Test

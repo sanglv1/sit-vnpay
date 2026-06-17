@@ -56,4 +56,13 @@ public class MinutesExportContext {
     public String evaluation(boolean passed) {
         return passed ? "Đạt" : "Không đạt";
     }
+
+    /** Email tài khoản tạo phiên (MERCHANT_QC / ADMIN đang đăng nhập lúc tạo). */
+    public String creatorEmail() {
+        return session.getCreatedByEmail() != null ? session.getCreatedByEmail().trim() : "";
+    }
+
+    public String resolvedMerchantRepresentative() {
+        return creatorEmail();
+    }
 }

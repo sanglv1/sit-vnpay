@@ -34,6 +34,21 @@ public class TestSession {
     @Column(name = "created_by_email", length = 200)
     private String createdByEmail;
 
+    @Column(name = "pending_txn_ref", length = 100)
+    private String pendingTxnRef;
+
+    @Column(name = "pending_amount_vnd")
+    private Long pendingAmountVnd;
+
+    @Column(name = "confirmed_txn_ref", length = 100)
+    private String confirmedTxnRef;
+
+    @Column(name = "confirmed_amount_vnd")
+    private Long confirmedAmountVnd;
+
+    @Column(name = "wrong_amount_vnd")
+    private Long wrongAmountVnd;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

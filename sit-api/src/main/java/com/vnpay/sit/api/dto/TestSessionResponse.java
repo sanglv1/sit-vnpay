@@ -17,8 +17,14 @@ public class TestSessionResponse {
     private final String status;
     private final int autoPassed;
     private final int autoTotal;
+    private final String pendingTxnRef;
+    private final Long pendingAmountVnd;
+    private final String confirmedTxnRef;
+    private final Long confirmedAmountVnd;
+    private final Long wrongAmountVnd;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
+    private final String createdByEmail;
 
     public static TestSessionResponse from(TestSession entity, int autoPassed, int autoTotal) {
         return TestSessionResponse.builder()
@@ -30,8 +36,14 @@ public class TestSessionResponse {
                 .status(entity.getStatus())
                 .autoPassed(autoPassed)
                 .autoTotal(autoTotal)
+                .pendingTxnRef(entity.getPendingTxnRef())
+                .pendingAmountVnd(entity.getPendingAmountVnd())
+                .confirmedTxnRef(entity.getConfirmedTxnRef())
+                .confirmedAmountVnd(entity.getConfirmedAmountVnd())
+                .wrongAmountVnd(entity.getWrongAmountVnd())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .createdByEmail(entity.getCreatedByEmail())
                 .build();
     }
 }

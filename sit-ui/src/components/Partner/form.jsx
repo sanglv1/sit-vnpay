@@ -80,7 +80,7 @@ const PartnerForm = () => {
               </select>
             </div>
             <div className="col-lg-4">
-              <label className="form-label">{t('partners.tmnCode')} *</label>
+              <label className="form-label">{t('partners.tmnCodeRequired')}</label>
               <input className="form-control" {...register('tmnCode', { required: t('common.required') })} />
             </div>
             <div className="col-lg-8">

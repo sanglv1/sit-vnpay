@@ -36,12 +36,13 @@ export interface PartnerResponse {
   flow: PaymentFlow;
   flowLabel: string;
   tmnCode: string;
-  /** Full secret for ADMIN; masked (`****` + last 4) for MERCHANT_QC */
+  /** Full secret for ADMIN or creator; masked for other MERCHANT_QC */
   secretKey: string;
   returnUrl: string | null;
   ipnUrl: string;
   note: string | null;
   active: boolean;
+  createdByEmail: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,8 +56,14 @@ export interface TestSessionResponse {
   status: string;
   autoPassed: number;
   autoTotal: number;
+  pendingTxnRef: string | null;
+  pendingAmountVnd: number | null;
+  confirmedTxnRef: string | null;
+  confirmedAmountVnd: number | null;
+  wrongAmountVnd: number | null;
   createdAt: string;
   updatedAt: string;
+  createdByEmail: string | null;
 }
 
 export interface TestRunResponse {
@@ -78,6 +85,15 @@ export interface TestRunResponse {
   durationMs: number | null;
   errorMessage: string | null;
   createdAt: string;
+  sessionCreatedByEmail: string | null;
+}
+
+export type SessionCompletionFilter = 'ALL' | 'COMPLETED' | 'IN_PROGRESS' | 'NOT_STARTED';
+
+export interface SessionWorkspaceResponse {
+  session: TestSessionResponse;
+  latestRuns: TestRunResponse[];
+  testCases: EnumOption[];
 }
 
 export interface EnumOption {
@@ -194,6 +210,14 @@ export interface LoginRequest {
 export interface CreateSessionRequest {
   partnerId: number;
   note?: string;
+}
+
+export interface SaveSessionTestInputRequest {
+  pendingTxnRef?: string;
+  pendingAmountVnd?: number | null;
+  confirmedTxnRef?: string;
+  confirmedAmountVnd?: number | null;
+  wrongAmountVnd?: number | null;
 }
 
 export interface TestRunRequest {

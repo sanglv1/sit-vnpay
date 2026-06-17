@@ -27,13 +27,14 @@ public final class CallbackSigner {
     }
 
     public static String hashFieldFor(PaymentFlow flow) {
-        return flow == PaymentFlow.PAY ? "vnp_SecureHash" : "vnp_secure_hash";
+        return CallbackFields.secureHashKey(flow);
     }
 
     private static SigningProfile profileFor(PaymentFlow flow) {
         return switch (flow) {
-            case PAY -> new SigningProfile(StandardCharsets.UTF_8, true, "vnp_SecureHash", "vnp_SecureHashType");
-            case TOKEN, RECURRING, INSTALMENT -> new SigningProfile(StandardCharsets.US_ASCII, false,
+            case PAY, INSTALMENT -> new SigningProfile(StandardCharsets.UTF_8, true,
+                    "vnp_SecureHash", "vnp_SecureHashType");
+            case TOKEN, RECURRING -> new SigningProfile(StandardCharsets.US_ASCII, false,
                     "vnp_secure_hash", "vnp_secure_hash_type");
         };
     }

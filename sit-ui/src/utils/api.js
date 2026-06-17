@@ -59,6 +59,16 @@ export async function apiPatch(path, data) {
 }
 
 /**
+ * PATCH API that returns no body (HTTP 204).
+ * @param {string} path
+ * @param {unknown} data
+ * @returns {Promise<void>}
+ */
+export async function apiPatchNoContent(path, data) {
+  await iAxios.patch(path, data);
+}
+
+/**
  * DELETE JSON API; unwraps envelope.
  * @template T
  * @param {string} path

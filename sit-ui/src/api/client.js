@@ -8,6 +8,7 @@ import {
   apiDownload,
   apiGet,
   apiPatch,
+  apiPatchNoContent,
   apiPost,
   apiPut,
 } from '../utils/api';
@@ -71,10 +72,19 @@ export const sitApi = {
 
   sessions: {
     /**
-     * @param {{ page?: number, size?: number }} [params]
+     * @param {{ page?: number, size?: number, q?: string }} [params]
      * @returns {Promise<import('../types/api').PageResponse<import('../types/api').TestSessionResponse>>}
      */
-    list: ({ page = 0, size = 50 } = {}) => apiGet(`/api/sessions?page=${page}&size=${size}`),
+    list: ({ page = 0, size = 50, q, completion } = {}) => {
+      const qs = new URLSearchParams({ page: String(page), size: String(size) });
+      if (q?.trim()) {
+        qs.set('q', q.trim());
+      }
+      if (completion?.trim()) {
+        qs.set('completion', completion.trim());
+      }
+      return apiGet(`/api/sessions?${qs}`);
+    },
 
     /**
      * @param {number|string} id
@@ -87,6 +97,25 @@ export const sitApi = {
      * @returns {Promise<import('../types/api').TestSessionResponse>}
      */
     create: (data) => apiPost('/api/sessions', data),
+
+    /**
+     * @param {number|string} id
+     * @param {import('../types/api').SaveSessionTestInputRequest} data
+     * @returns {Promise<import('../types/api').TestSessionResponse>}
+     */
+    saveTestInput: (id, data) => apiPatchNoContent(`/api/sessions/${id}/test-input`, data),
+
+    /**
+     * @param {number|string} sessionId
+     * @returns {Promise<import('../types/api').SessionWorkspaceResponse>}
+     */
+    workspace: (sessionId) => apiGet(`/api/sessions/${sessionId}/workspace`),
+
+    /**
+     * @param {number|string} sessionId
+     * @returns {Promise<import('../types/api').TestRunResponse[]>}
+     */
+    latestRuns: (sessionId) => apiGet(`/api/sessions/${sessionId}/latest-runs`),
 
     /**
      * @param {number|string} sessionId
@@ -114,14 +143,14 @@ export const sitApi = {
     metadata: () => apiGet('/api/tests/metadata'),
 
     /**
-     * @param {{ page?: number, size?: number, sessionId?: number|string }} [params]
+     * @param {{ page?: number, size?: number, sessionId?: number|string, createdByEmail?: string }} [params]
      * @returns {Promise<import('../types/api').PageResponse<import('../types/api').TestRunResponse>>}
      */
-    history: ({ page = 0, size = 20, sessionId } = {}) => {
-      const query = sessionId != null
-        ? `?page=${page}&size=${size}&sessionId=${sessionId}`
-        : `?page=${page}&size=${size}`;
-      return apiGet(`/api/tests${query}`);
+    history: ({ page = 0, size = 20, sessionId, createdByEmail } = {}) => {
+      const qs = new URLSearchParams({ page: String(page), size: String(size) });
+      if (sessionId != null) qs.set('sessionId', String(sessionId));
+      if (createdByEmail) qs.set('createdByEmail', createdByEmail);
+      return apiGet(`/api/tests?${qs}`);
     },
 
     /**

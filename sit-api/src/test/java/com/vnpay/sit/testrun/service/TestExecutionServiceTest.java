@@ -8,7 +8,9 @@ import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.user.entity.SitUser;
 import com.vnpay.sit.model.UserRole;
 import com.vnpay.sit.partner.entity.PartnerConfig;
+import com.vnpay.sit.session.entity.TestSession;
 import com.vnpay.sit.session.repository.TestSessionRepository;
+import com.vnpay.sit.session.service.TestSessionService;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.partner.service.PartnerService;
@@ -23,6 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -32,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,6 +61,9 @@ class TestExecutionServiceTest {
     @Mock
     private TestSessionRepository sessionRepository;
 
+    @Mock
+    private TestSessionService testSessionService;
+
     private TestExecutionService testExecutionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -70,7 +78,8 @@ class TestExecutionServiceTest {
                 httpRunner,
                 objectMapper,
                 accessControlService,
-                sessionRepository
+                sessionRepository,
+                testSessionService
         );
 
         partner = new PartnerConfig();
@@ -85,7 +94,7 @@ class TestExecutionServiceTest {
 
     @Test
     void execute_ipnSuccess_shouldPassWhenRspCodeMatches() {
-        when(partnerService.findById(1L)).thenReturn(Optional.of(partner));
+        when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
         when(httpRunner.execute(eq(partner.getIpnUrl()), any(), eq(true)))
                 .thenReturn(callbackResponse(200, "{\"RspCode\":\"00\"}"));
         when(testRunRepository.save(any(TestRun.class))).thenAnswer(invocation -> {
@@ -107,7 +116,7 @@ class TestExecutionServiceTest {
 
     @Test
     void execute_invalidHash_shouldPassWhenMerchantReturns97() {
-        when(partnerService.findById(1L)).thenReturn(Optional.of(partner));
+        when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
         when(httpRunner.execute(eq(partner.getIpnUrl()), any(), eq(true)))
                 .thenReturn(callbackResponse(200, "{\"RspCode\":\"97\"}"));
         when(testRunRepository.save(any(TestRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -120,7 +129,7 @@ class TestExecutionServiceTest {
 
     @Test
     void execute_invalidHash_shouldAttachInvalidHashField() {
-        when(partnerService.findById(1L)).thenReturn(Optional.of(partner));
+        when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
         when(httpRunner.execute(eq(partner.getIpnUrl()), any(), eq(true)))
                 .thenReturn(callbackResponse(200, "{\"RspCode\":\"97\"}"));
         when(testRunRepository.save(any(TestRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -135,7 +144,7 @@ class TestExecutionServiceTest {
 
     @Test
     void execute_returnUrl_shouldPassOn2xxResponse() {
-        when(partnerService.findById(1L)).thenReturn(Optional.of(partner));
+        when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
         when(httpRunner.execute(eq(partner.getReturnUrl()), any(), eq(false)))
                 .thenReturn(callbackResponse(200, "OK"));
         when(testRunRepository.save(any(TestRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -152,7 +161,7 @@ class TestExecutionServiceTest {
     @Test
     void execute_missingIpnUrl_shouldThrow() {
         partner.setIpnUrl("");
-        when(partnerService.findById(1L)).thenReturn(Optional.of(partner));
+        when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
 
         assertThatThrownBy(() -> testExecutionService.execute(ipnForm(TestCaseType.SUCCESS), adminPrincipal()))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -161,7 +170,8 @@ class TestExecutionServiceTest {
 
     @Test
     void execute_unknownPartner_shouldThrow() {
-        when(partnerService.findById(99L)).thenReturn(Optional.empty());
+        when(partnerService.requireAccessible(eq(99L), any()))
+                .thenThrow(new IllegalArgumentException("Không tìm thấy đối tác"));
 
         TestRunForm form = ipnForm(TestCaseType.SUCCESS);
         form.setPartnerId(99L);
@@ -173,7 +183,7 @@ class TestExecutionServiceTest {
 
     @Test
     void executeIpnSuite_shouldRunSixCasesAndAggregateResults() {
-        when(partnerService.findById(1L)).thenReturn(Optional.of(partner));
+        when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
         when(httpRunner.execute(eq(partner.getIpnUrl()), any(), eq(true)))
                 .thenReturn(callbackResponse(200, "{\"RspCode\":\"00\"}"))
                 .thenReturn(callbackResponse(200, "{\"RspCode\":\"01\"}"))
@@ -201,7 +211,7 @@ class TestExecutionServiceTest {
 
     @Test
     void getIpnSuiteResult_shouldBuildFromLatestSessionRuns() {
-        when(testRunRepository.findBySessionIdOrderByCreatedAtDesc(2L)).thenReturn(List.of(
+        when(testRunRepository.findLatestPerTestCaseBySessionId(2L)).thenReturn(List.of(
                 runForCase(TestCaseType.SUCCESS, true, "00", 200L),
                 runForCase(TestCaseType.INVALID_HASH, true, "97", 201L)
         ));
@@ -223,9 +233,40 @@ class TestExecutionServiceTest {
 
     @Test
     void getIpnSuiteResult_withoutRuns_shouldReturnEmpty() {
-        when(testRunRepository.findBySessionIdOrderByCreatedAtDesc(99L)).thenReturn(List.of());
+        when(testRunRepository.findLatestPerTestCaseBySessionId(99L)).thenReturn(List.of());
 
         assertThat(testExecutionService.getIpnSuiteResult(99L)).isEmpty();
+    }
+
+    @Test
+    void findHistory_adminWithoutFilter_shouldReturnGlobalHistory() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        PageImpl<TestRun> expected = new PageImpl<>(List.of(new TestRun()), pageable, 1);
+        when(accessControlService.isAdmin(any())).thenReturn(true);
+        when(testRunRepository.findAllByOrderByCreatedAtDesc(pageable)).thenReturn(expected);
+
+        assertThat(testExecutionService.findHistory(null, null, pageable, adminPrincipal()))
+                .isSameAs(expected);
+        verify(testRunRepository).findAllByOrderByCreatedAtDesc(pageable);
+        verify(sessionRepository, never()).findByCreatedByEmailIgnoreCaseOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void findHistory_merchantShouldOnlyUseOwnedSessions() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        TestSession ownedSession = new TestSession();
+        ownedSession.setId(22L);
+        PageImpl<TestRun> expected = new PageImpl<>(List.of(new TestRun()), pageable, 1);
+        when(accessControlService.isAdmin(any())).thenReturn(false);
+        when(accessControlService.currentUserEmail(any())).thenReturn("qc@merchant.com");
+        when(sessionRepository.findByCreatedByEmailIgnoreCaseOrderByCreatedAtDesc("qc@merchant.com"))
+                .thenReturn(List.of(ownedSession));
+        when(testRunRepository.findBySessionIdInOrderByCreatedAtDesc(List.of(22L), pageable)).thenReturn(expected);
+
+        assertThat(testExecutionService.findHistory(null, null, pageable, merchantPrincipal()))
+                .isSameAs(expected);
+        verify(testRunRepository).findBySessionIdInOrderByCreatedAtDesc(List.of(22L), pageable);
+        verify(testRunRepository, never()).findAllByOrderByCreatedAtDesc(pageable);
     }
 
     private SitUserPrincipal adminPrincipal() {
@@ -233,6 +274,15 @@ class TestExecutionServiceTest {
         user.setId(1L);
         user.setEmail("admin@test.com");
         user.setRole(UserRole.ADMIN);
+        user.setActive(true);
+        return new SitUserPrincipal(user);
+    }
+
+    private SitUserPrincipal merchantPrincipal() {
+        SitUser user = new SitUser();
+        user.setId(2L);
+        user.setEmail("qc@merchant.com");
+        user.setRole(UserRole.MERCHANT_QC);
         user.setActive(true);
         return new SitUserPrincipal(user);
     }

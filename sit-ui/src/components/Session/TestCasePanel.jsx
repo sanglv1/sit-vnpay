@@ -44,8 +44,8 @@ const parseOutput = (body) => {
 
 const inputKeysForRun = (run) => {
   const params = parseParams(run?.requestParams);
-  const isPay = 'vnp_TxnRef' in params || run?.flow === 'PAY';
-  return isPay ? INPUT_KEYS_PAY : INPUT_KEYS_SNAKE;
+  const usesPascalCase = 'vnp_TxnRef' in params || run?.flow === 'PAY' || run?.flow === 'INSTALMENT';
+  return usesPascalCase ? INPUT_KEYS_PAY : INPUT_KEYS_SNAKE;
 };
 
 const formatInputBlock = (run) => {

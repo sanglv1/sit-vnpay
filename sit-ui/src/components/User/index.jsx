@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { useForm } from 'react-hook-form';
 
 import { useDispatch } from 'react-redux';
 
 import Breadcrumbs from '../Shared/Breadcrumbs';
+import SitSearchBox from '../Shared/SitSearchBox';
 
 import { useI18n } from '../../i18n/useI18n';
+import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
 
 import {
   useDeleteUserMutation,
@@ -80,9 +82,7 @@ const UserList = () => {
 
   const { t } = useI18n();
 
-  const [search, setSearch] = useState('');
-
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { search, setSearch, debouncedSearch, hasSearch } = useDebouncedSearch();
 
   const [formOpen, setFormOpen] = useState(false);
 
@@ -103,11 +103,6 @@ const UserList = () => {
   const updateStatus = useUpdateUserStatusMutation();
   const deleteUser = useDeleteUserMutation();
   const { data: users = [] } = useUsersQuery(debouncedSearch);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
 
 
@@ -315,43 +310,43 @@ const UserList = () => {
 
       <div className="card-body">
 
-        <div className="table-top">
-
-          <input
-
-            className="form-control"
-
-            style={{ maxWidth: 360 }}
-
-            placeholder={t('users.searchPlaceholder')}
-
-            value={search}
-
-            onChange={(e) => setSearch(e.target.value)}
-
-            onKeyDown={(e) => e.key === 'Enter' && setDebouncedSearch(e.target.value)}
-
-          />
-
-        </div>
+        <SitSearchBox
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('users.searchPlaceholder')}
+        />
 
         <div className="table-wrap">
 
-          <table className="table table-striped">
+          <table className="table table-striped data-table user-table">
+
+            <colgroup>
+
+              <col className="col-name" />
+
+              <col className="col-email" />
+
+              <col className="col-role" />
+
+              <col className="col-status" />
+
+              <col className="col-actions" />
+
+            </colgroup>
 
             <thead>
 
               <tr>
 
-                <th>{t('users.fullName')}</th>
+                <th className="text-start">{t('users.fullName')}</th>
 
-                <th>{t('common.email')}</th>
+                <th className="text-start">{t('common.email')}</th>
 
-                <th>{t('users.role')}</th>
+                <th className="text-center">{t('users.role')}</th>
 
-                <th>{t('common.status')}</th>
+                <th className="text-center">{t('common.status')}</th>
 
-                <th />
+                <th className="text-end" />
 
               </tr>
 
@@ -363,11 +358,11 @@ const UserList = () => {
 
                 <tr key={u.id}>
 
-                  <td>{u.fullName}</td>
+                  <td title={u.fullName}>{u.fullName}</td>
 
-                  <td>{u.email}</td>
+                  <td title={u.email}>{u.email}</td>
 
-                  <td>
+                  <td className="text-center">
 
                     <span className={`badge ${u.role === 'ADMIN' ? 'badge-info' : 'badge-warning'}`}>
 
@@ -377,7 +372,7 @@ const UserList = () => {
 
                   </td>
 
-                  <td>
+                  <td className="text-center">
 
                     <span className={`badge ${u.active ? 'badge-success' : 'badge-danger'}`}>
 
@@ -387,7 +382,7 @@ const UserList = () => {
 
                   </td>
 
-                  <td>
+                  <td className="text-end">
 
                     <button type="button" className="btn btn-icon" title={t('common.edit')} onClick={() => openEdit(u)}>
 
@@ -445,7 +440,9 @@ const UserList = () => {
 
           {users.length === 0 && (
 
-            <p className="text-muted text-center">{t('users.empty')}</p>
+            <p className="text-muted text-center">
+              {hasSearch ? t('common.searchEmpty') : t('users.empty')}
+            </p>
 
           )}
 

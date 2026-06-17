@@ -42,6 +42,10 @@ public class PartnerConfig {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Email người tạo Terminal — MERCHANT_QC chỉ xem/sửa Terminal do mình tạo. */
+    @Column(name = "created_by_email", length = 200)
+    private String createdByEmail;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

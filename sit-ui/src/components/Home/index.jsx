@@ -62,6 +62,7 @@ const AcceptanceChart = ({ days, legendPassed, legendFailed }) => {
 
 const Home = () => {
   const user = useSelector((state) => state.auth.user);
+  const isAdmin = user?.role === 'ADMIN';
   const { t } = useI18n();
   const { data, error, isLoading } = useDashboardQuery();
 
@@ -160,7 +161,9 @@ const Home = () => {
                       <div className="dash-session-title">
                         #{s.id} - {s.tmnCode} [{s.statusLabel}]
                       </div>
-                      <div className="dash-session-email">{s.createdByEmail}</div>
+                      {isAdmin && (
+                        <div className="dash-session-email">{s.createdByEmail}</div>
+                      )}
                     </div>
                     <div className="dash-session-time">{formatSessionTime(s.createdAt)}</div>
                   </Link>

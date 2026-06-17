@@ -27,7 +27,7 @@ const TestDetail = () => {
               {run.passed ? t('common.pass') : t('common.fail')}
             </span>
           </h3>
-          <Link to="/tests/history" className="btn btn-light-primary btn-sm">{t('tests.backHistory')}</Link>
+          <Link to="/sessions" className="btn btn-light-primary btn-sm">{t('tests.backSessions')}</Link>
         </div>
       </div>
       <div className="card-body">
