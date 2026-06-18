@@ -10,6 +10,7 @@ import java.util.List;
 public class TestSuiteResponse {
     private final Long sessionId;
     private final String txnRef;
+    private final String failedTxnRef;
     private final String partnerName;
     private final int totalSteps;
     private final int passedSteps;

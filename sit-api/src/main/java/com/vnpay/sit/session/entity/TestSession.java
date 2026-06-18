@@ -46,6 +46,12 @@ public class TestSession {
     @Column(name = "confirmed_amount_vnd")
     private Long confirmedAmountVnd;
 
+    @Column(name = "failed_txn_ref", length = 100)
+    private String failedTxnRef;
+
+    @Column(name = "failed_amount_vnd")
+    private Long failedAmountVnd;
+
     @Column(name = "wrong_amount_vnd")
     private Long wrongAmountVnd;
 

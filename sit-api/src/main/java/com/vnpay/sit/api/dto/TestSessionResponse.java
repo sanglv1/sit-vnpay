@@ -21,6 +21,8 @@ public class TestSessionResponse {
     private final Long pendingAmountVnd;
     private final String confirmedTxnRef;
     private final Long confirmedAmountVnd;
+    private final String failedTxnRef;
+    private final Long failedAmountVnd;
     private final Long wrongAmountVnd;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
@@ -40,6 +42,8 @@ public class TestSessionResponse {
                 .pendingAmountVnd(entity.getPendingAmountVnd())
                 .confirmedTxnRef(entity.getConfirmedTxnRef())
                 .confirmedAmountVnd(entity.getConfirmedAmountVnd())
+                .failedTxnRef(entity.getFailedTxnRef())
+                .failedAmountVnd(entity.getFailedAmountVnd())
                 .wrongAmountVnd(entity.getWrongAmountVnd())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())

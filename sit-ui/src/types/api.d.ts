@@ -60,6 +60,8 @@ export interface TestSessionResponse {
   pendingAmountVnd: number | null;
   confirmedTxnRef: string | null;
   confirmedAmountVnd: number | null;
+  failedTxnRef: string | null;
+  failedAmountVnd: number | null;
   wrongAmountVnd: number | null;
   createdAt: string;
   updatedAt: string;
@@ -129,6 +131,7 @@ export interface TestSuiteStepResponse {
 export interface TestSuiteResponse {
   sessionId: number | null;
   txnRef: string;
+  failedTxnRef: string;
   partnerName: string;
   totalSteps: number;
   passedSteps: number;
@@ -215,6 +218,8 @@ export interface CreateSessionRequest {
 export interface SaveSessionTestInputRequest {
   pendingTxnRef?: string;
   pendingAmountVnd?: number | null;
+  failedTxnRef?: string;
+  failedAmountVnd?: number | null;
   confirmedTxnRef?: string;
   confirmedAmountVnd?: number | null;
   wrongAmountVnd?: number | null;
@@ -235,6 +240,8 @@ export interface TestSuiteRequest {
   sessionId: number;
   txnRef: string;
   amountVnd: number;
+  failedTxnRef: string;
+  failedAmountVnd?: number | null;
   wrongAmountVnd?: number;
 }
 

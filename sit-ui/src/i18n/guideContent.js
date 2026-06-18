@@ -41,7 +41,7 @@ export const guideContent = {
         flowDiff: [
           ['PAY', 'PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8'],
           ['TOKEN', 'snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_command`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` (tùy chọn) khi GD thành công'],
-          ['RECURRING', 'snake_case (tương tự TOKEN): `vnp_command=recurring_pay`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code` và các field IPN chuẩn'],
+          ['RECURRING', 'snake_case: `vnp_command=pay_n_recurring`, `vnp_order_info`, `vnp_app_user_id`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_token_exp_date`, `vnp_card_number`, `vnp_bank_code`, `vnp_bank_tran_no`, `vnp_card_type` khi GD thành công'],
           ['INSTALMENT', 'PascalCase (tương tự PAY): `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8'],
         ],
       },
@@ -229,7 +229,7 @@ export const guideContent = {
         flowDiff: [
           ['PAY', 'PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — UTF-8 signing'],
           ['TOKEN', 'snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_command`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; adds optional `vnp_token`, `vnp_card_number` on success'],
-          ['RECURRING', 'snake_case (same as TOKEN): `vnp_command=recurring_pay`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code` and standard IPN fields'],
+          ['RECURRING', 'snake_case: `vnp_command=pay_n_recurring`, `vnp_order_info`, `vnp_app_user_id`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; adds `vnp_token`, `vnp_token_exp_date`, `vnp_card_number`, `vnp_bank_code`, `vnp_bank_tran_no`, `vnp_card_type` on success'],
           ['INSTALMENT', 'PascalCase (same as PAY): `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — UTF-8 signing'],
         ],
       },

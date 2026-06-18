@@ -184,6 +184,14 @@ Trước khi dùng SIT, merchant cần:
 2. Cung cấp cho QC: **TMN Code**, **Secret Key**, **Return URL**, **IPN URL**.
 3. Đảm bảo server IPN xử lý đúng thứ tự kiểm tra và trả `RspCode` theo chuẩn VNPay.
 
+**Chuẩn bị 2 giao dịch cho nghiệm thu IPN tự động** (trên giao diện merchant, không qua SIT):
+
+1. Tạo **giao dịch 1** (Pay) → đến màn **OTP** → **dừng**, chưa xác nhận OTP → copy `txnRef` + số tiền.
+2. Tạo **giao dịch 2** (`txnRef` khác) → đến **OTP** → **dừng** → copy `txnRef` + số tiền.
+3. Nhập vào SIT: đơn 1 → ô **Case 5**; đơn 2 → ô **Case 6**.
+
+SIT chỉ **giả lập IPN** gửi về merchant — không cần hoàn tất thanh toán trên cổng VNPay.
+
 ### Bước 2 — Tạo đối tác (`/partners/create`)
 
 Vào **Đối tác → Thêm đối tác**, khai báo:
@@ -203,7 +211,7 @@ Vào **Đối tác → Thêm đối tác**, khai báo:
 |-------|-------------------|
 | PAY | PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
 | TOKEN | snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_command`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` (tùy chọn) khi GD thành công |
-| RECURRING | snake_case (tương tự TOKEN): `vnp_command=recurring_pay`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code` và các field IPN chuẩn |
+| RECURRING | snake_case: `vnp_command=pay_n_recurring`, `vnp_order_info`, `vnp_app_user_id`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_token_exp_date`, `vnp_card_number`, `vnp_bank_code`, `vnp_bank_tran_no`, `vnp_card_type` khi GD thành công |
 | INSTALMENT | PascalCase (tương tự PAY): `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
 
 ### Bước 3 — Tạo phiên kiểm thử (`/sessions/new`)
@@ -218,13 +226,13 @@ Hệ thống chuyển sang tab **Nghiệm thu tự động**. Mỗi phiên theo 
 
 Tool mô phỏng VNPay gửi **HTTP GET** tới **IPN URL** của merchant, kèm header `X-Forwarded-For: 113.160.92.202` (IP sandbox VNPay).
 
-**Chuẩn bị dữ liệu:**
+**Chuẩn bị dữ liệu trên form SIT** (sau khi tạo 2 GD dừng OTP trên merchant):
 
 | Tham số | Mô tả |
 |---------|-------|
-| Mã giao dịch | `vnp_TxnRef` (PAY, INSTALMENT) / `vnp_txn_ref` (TOKEN, RECURRING) — nhập trên form SIT |
-| Số tiền (VND) | `vnp_Amount` (PAY, INSTALMENT) / `vnp_amount` (TOKEN, RECURRING) — giá trị gửi đi = số VND × 100 |
-| Số tiền sai (VND) | Dùng cho Case 3 — ghi đè `vnp_Amount` / `vnp_amount` (mặc định = số tiền đúng + 1.000 VND) |
+| Đơn Case 5 | `txnRef` + số tiền **giao dịch 1** (dừng OTP) — dùng Case 3, 5; Case 4 gửi lại IPN sau Case 5 |
+| Đơn Case 6 | `txnRef` + số tiền **giao dịch 2** (dừng OTP, **khác** Case 5) — mỗi txnRef chỉ cập nhật DB một lần (`00`), gọi lại trả `02` |
+| Số tiền sai (VND) | Dùng cho Case 3 — ghi đè amount trong IPN giả lập (mặc định = số tiền Case 5 + 1.000 VND) |
 
 **Hai cách chạy:**
 
@@ -236,9 +244,9 @@ Tool mô phỏng VNPay gửi **HTTP GET** tới **IPN URL** của merchant, kèm
 | 1 | Case 1 | Chữ ký không hợp lệ (`vnp_SecureHash` / `vnp_secure_hash`) | **97** |
 | 2 | Case 2 | `vnp_TxnRef` / `vnp_txn_ref` không tồn tại (tool tự sinh mã giả) | **01** |
 | 3 | Case 3 | `vnp_Amount` / `vnp_amount` không khớp | **04** |
-| 4 | Case 6 | Giao dịch thất bại (`vnp_ResponseCode` ≠ 00) | **00** |
-| 5 | Case 5 | Giao dịch thành công | **00** |
-| 6 | Case 4 | Gửi lại khi đơn đã xác nhận | **02** |
+| 4 | Case 6 | Giao dịch thất bại (`vnp_ResponseCode` ≠ 00) — **đơn txnRef riêng** | **00** |
+| 5 | Case 5 | Giao dịch thành công — **đơn txnRef riêng** | **00** |
+| 6 | Case 4 | Gửi lại IPN đơn Case 5 khi đã xác nhận | **02** |
 
 **Tiêu chí PASS:** HTTP 2xx, không lỗi kết nối, `RspCode` trong response body khớp giá trị mong đợi.
 
@@ -289,11 +297,12 @@ Bấm **Lưu kết quả QC** để lưu theo phiên.
 |---|--------------|-------------------|
 | 1 | Tạo đối tác đúng luồng | Thủ công |
 | 2 | Tạo phiên kiểm thử | Thủ công |
-| 3 | Case 1–6 IPN (97, 01, 04, 00, 00, 02) | **Tự động** |
-| 4 | Return URL thành công / thất bại | **Thủ công** |
-| 5 | Case ex (RspCode 99) | **Thủ công** |
-| 6 | Whitelist IP | **Thủ công** |
-| 7 | Lưu log | **Thủ công** |
+| 3 | Tạo 2 GD trên merchant (dừng OTP), nhập txnRef Case 5 & 6 | Thủ công |
+| 4 | Case 1–6 IPN (97, 01, 04, 00, 00, 02) | **Tự động** |
+| 5 | Return URL thành công / thất bại | **Thủ công** |
+| 6 | Case ex (RspCode 99) | **Thủ công** |
+| 7 | Whitelist IP | **Thủ công** |
+| 8 | Lưu log | **Thủ công** |
 
 ## Quản lý người dùng (`/users` — ADMIN)
 

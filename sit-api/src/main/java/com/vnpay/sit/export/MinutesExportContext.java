@@ -10,7 +10,6 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -37,14 +36,10 @@ public class MinutesExportContext {
     }
 
     public static Map<TestCaseType, TestRun> indexLatestIpnRuns(java.util.List<TestRun> runs) {
-        Map<TestCaseType, TestRun> latest = new EnumMap<>(TestCaseType.class);
-        for (TestRun run : runs) {
-            if (run.getTestCase() == null) {
-                continue;
-            }
-            latest.putIfAbsent(run.getTestCase(), run);
-        }
-        return latest;
+        return com.vnpay.sit.testrun.service.TestRunGrouping.effectiveByTestCase(
+                runs,
+                run -> run.getTestCase() != null
+        );
     }
 
     public LocalDate exportDate() {

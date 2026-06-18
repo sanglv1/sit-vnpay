@@ -7,7 +7,6 @@ import AcceptanceTabs from './AcceptanceTabs';
 import TestCasePanel from './TestCasePanel';
 import {
   latestRunsByCase,
-  usePrepareMerchantOrderMutation,
   useRunIpnSuiteMutation,
   useRunTestMutation,
   useSaveSessionTestInputMutation,
@@ -23,17 +22,30 @@ const IPN_LOGIC = [
   { step: 5, check: 'Kiểm tra kết quả giao dịch', param: 'vnp_ResponseCode / vnp_TransactionStatus', caseNo: 'Case 5', rsp: '00' },
 ];
 
-const PENDING_ORDER_CASES = new Set(['WRONG_AMOUNT', 'SUCCESS', 'FAILED']);
+const SUCCESS_ORDER_CASES = new Set(['WRONG_AMOUNT', 'SUCCESS']);
 
-/** Chọn txnRef/amount theo case — Case 4 ưu tiên đơn đã SUCCESS nếu có. */
+/** Chọn txnRef/amount theo case — mỗi kịch bản IPN dùng đơn riêng khi cần. */
 const resolveOrderForCase = (caseValue, values) => {
   const pendingTxnRef = values.pendingTxnRef?.trim() || '';
   const pendingAmountVnd = Number(values.pendingAmountVnd) || 100000;
+  const failedTxnRef = values.failedTxnRef?.trim() || '';
+  const failedAmountVnd = Number(values.failedAmountVnd) || pendingAmountVnd;
   const confirmedTxnRef = values.confirmedTxnRef?.trim() || '';
   const confirmedAmountVnd = Number(values.confirmedAmountVnd) || pendingAmountVnd;
 
-  if (caseValue === 'ORDER_ALREADY_CONFIRMED' && confirmedTxnRef) {
-    return { txnRef: confirmedTxnRef, amountVnd: confirmedAmountVnd };
+  if (caseValue === 'ORDER_ALREADY_CONFIRMED') {
+    if (confirmedTxnRef) {
+      return { txnRef: confirmedTxnRef, amountVnd: confirmedAmountVnd };
+    }
+    if (pendingTxnRef) {
+      return { txnRef: pendingTxnRef, amountVnd: pendingAmountVnd };
+    }
+  }
+  if (caseValue === 'FAILED' && failedTxnRef) {
+    return { txnRef: failedTxnRef, amountVnd: failedAmountVnd };
+  }
+  if (SUCCESS_ORDER_CASES.has(caseValue) && pendingTxnRef) {
+    return { txnRef: pendingTxnRef, amountVnd: pendingAmountVnd };
   }
   if (pendingTxnRef) {
     return { txnRef: pendingTxnRef, amountVnd: pendingAmountVnd };
@@ -44,17 +56,32 @@ const resolveOrderForCase = (caseValue, values) => {
   return { txnRef: '', amountVnd: pendingAmountVnd };
 };
 
+const txnRefsMustDiffer = (successTxnRef, failedTxnRef) => {
+  if (!successTxnRef?.trim() || !failedTxnRef?.trim()) return null;
+  if (successTxnRef.trim().toLowerCase() === failedTxnRef.trim().toLowerCase()) {
+    return 'txnRef Case 5 (thành công) và Case 6 (thất bại) phải khác nhau';
+  }
+  return null;
+};
+
 const validateOrderForCase = (caseValue, values) => {
   const { txnRef } = resolveOrderForCase(caseValue, values);
-  if (PENDING_ORDER_CASES.has(caseValue) && !values.pendingTxnRef?.trim()) {
-    return 'Nhập mã giao dịch đơn chờ thanh toán (PENDING)';
+  if (SUCCESS_ORDER_CASES.has(caseValue) && !values.pendingTxnRef?.trim()) {
+    return 'Nhập mã giao dịch đơn thành công (Case 5)';
+  }
+  if (caseValue === 'FAILED' && !values.failedTxnRef?.trim()) {
+    return 'Nhập mã giao dịch đơn thất bại (Case 6)';
   }
   if (caseValue === 'ORDER_ALREADY_CONFIRMED') {
     const hasConfirmed = Boolean(values.confirmedTxnRef?.trim());
-    const hasPending = Boolean(values.pendingTxnRef?.trim());
-    if (!hasConfirmed && !hasPending) {
-      return 'Nhập txnRef đơn đã thanh toán (SUCCESS) hoặc đơn PENDING đã chạy Case 5 trước đó';
+    const hasSuccessOrder = Boolean(values.pendingTxnRef?.trim());
+    if (!hasConfirmed && !hasSuccessOrder) {
+      return 'Chạy Case 5 trước hoặc nhập txnRef đơn đã SUCCESS cho Case 4';
     }
+  }
+  const differError = txnRefsMustDiffer(values.pendingTxnRef, values.failedTxnRef);
+  if (differError && (caseValue === 'FAILED' || caseValue === 'SUCCESS')) {
+    return differError;
   }
   if (!txnRef) {
     return 'Nhập mã giao dịch (txnRef)';
@@ -65,6 +92,8 @@ const validateOrderForCase = (caseValue, values) => {
 const toTestInputPayload = (values) => ({
   pendingTxnRef: values.pendingTxnRef?.trim() ?? '',
   pendingAmountVnd: values.pendingAmountVnd ? Number(values.pendingAmountVnd) : null,
+  failedTxnRef: values.failedTxnRef?.trim() ?? '',
+  failedAmountVnd: values.failedAmountVnd ? Number(values.failedAmountVnd) : null,
   confirmedTxnRef: values.confirmedTxnRef?.trim() ?? '',
   confirmedAmountVnd: values.confirmedAmountVnd ? Number(values.confirmedAmountVnd) : null,
   wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
@@ -85,7 +114,6 @@ const SessionAuto = () => {
   const metadata = workspace ? { testCases: workspace.testCases } : null;
   const runTest = useRunTestMutation(sessionId);
   const runIpnSuite = useRunIpnSuiteMutation(sessionId);
-  const prepareOrder = usePrepareMerchantOrderMutation();
   const saveTestInput = useSaveSessionTestInputMutation(sessionId);
 
   useEffect(() => {
@@ -110,6 +138,8 @@ const SessionAuto = () => {
       sessionId: session.id,
       pendingTxnRef: session.pendingTxnRef || '',
       pendingAmountVnd: session.pendingAmountVnd ?? '',
+      failedTxnRef: session.failedTxnRef || '',
+      failedAmountVnd: session.failedAmountVnd ?? '',
       confirmedTxnRef: session.confirmedTxnRef || '',
       confirmedAmountVnd: session.confirmedAmountVnd ?? '',
       wrongAmountVnd: session.wrongAmountVnd ?? '',
@@ -157,10 +187,26 @@ const SessionAuto = () => {
       const result = await runTest.mutateAsync({
         ...buildPayload(values, caseValue),
       });
-      dispatch(appActions.flash(
-        result.passed ? 'Kiểm thử PASS' : 'Kiểm thử FAIL',
-        result.passed ? 'success' : 'danger',
-      ));
+      if (caseValue === 'SUCCESS' && result.passed) {
+        const order = resolveOrderForCase('SUCCESS', getValues());
+        setValue('confirmedTxnRef', order.txnRef);
+        setValue('confirmedAmountVnd', order.amountVnd);
+        await saveTestInput.mutateAsync(toTestInputPayload(getValues()));
+      }
+      const orderAlreadyProcessed = !result.passed
+        && result.actualRspCode === '02'
+        && (caseValue === 'SUCCESS' || caseValue === 'FAILED');
+      if (orderAlreadyProcessed) {
+        dispatch(appActions.flash(
+          'Merchant trả RspCode 02 — đơn đã xử lý trước đó (đúng khi gọi lại IPN). Kết quả nghiệm thu giữ bản PASS trước đó.',
+          'warning',
+        ));
+      } else {
+        dispatch(appActions.flash(
+          result.passed ? 'Kiểm thử PASS' : 'Kiểm thử FAIL',
+          result.passed ? 'success' : 'danger',
+        ));
+      }
     } catch {
       // mutation cache handles API errors
     } finally {
@@ -175,11 +221,20 @@ const SessionAuto = () => {
   const onRunIpnSuite = async () => {
     const values = getValues();
     if (!values.pendingTxnRef?.trim()) {
-      dispatch(appActions.flash('Nhập mã giao dịch đơn chờ thanh toán (PENDING) để chạy suite', 'danger'));
+      dispatch(appActions.flash('Nhập mã giao dịch đơn thành công (Case 5) để chạy suite', 'danger'));
+      return;
+    }
+    if (!values.failedTxnRef?.trim()) {
+      dispatch(appActions.flash('Nhập mã giao dịch đơn thất bại (Case 6) để chạy suite', 'danger'));
+      return;
+    }
+    const differError = txnRefsMustDiffer(values.pendingTxnRef, values.failedTxnRef);
+    if (differError) {
+      dispatch(appActions.flash(differError, 'danger'));
       return;
     }
     if (!values.pendingAmountVnd || Number(values.pendingAmountVnd) < 1) {
-      dispatch(appActions.flash('Nhập số tiền đơn chờ thanh toán (PENDING) để chạy suite', 'danger'));
+      dispatch(appActions.flash('Nhập số tiền đơn thành công (Case 5) để chạy suite', 'danger'));
       return;
     }
     try {
@@ -190,6 +245,8 @@ const SessionAuto = () => {
           sessionId: Number(sessionId),
           txnRef: values.pendingTxnRef.trim(),
           amountVnd: Number(values.pendingAmountVnd),
+          failedTxnRef: values.failedTxnRef.trim(),
+          failedAmountVnd: values.failedAmountVnd ? Number(values.failedAmountVnd) : null,
           wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
         },
         config: { timeout: 180000 },
@@ -199,37 +256,6 @@ const SessionAuto = () => {
         result.allPassed ? 'success' : 'danger',
       ));
       navigate(`/sessions/${sessionId}/suite-result`);
-    } catch {
-      // mutation cache handles API errors
-    }
-  };
-
-  const onPrepareMerchantOrder = async () => {
-    const amountVnd = Number(getValues('pendingAmountVnd'));
-    if (!amountVnd || amountVnd < 1) {
-      dispatch(appActions.flash('Nhập số tiền đơn chờ thanh toán (PENDING) trước khi tạo đơn', 'danger'));
-      return;
-    }
-    try {
-      const result = await prepareOrder.mutateAsync({
-        partnerId: Number(session.partnerId),
-        amountVnd,
-      });
-      setValue('pendingTxnRef', result.txnRef);
-      setValue('pendingAmountVnd', result.amountVnd);
-      await saveTestInput.mutateAsync({
-        pendingTxnRef: result.txnRef,
-        pendingAmountVnd: result.amountVnd,
-        confirmedTxnRef: getValues('confirmedTxnRef')?.trim() ?? '',
-        confirmedAmountVnd: getValues('confirmedAmountVnd')
-          ? Number(getValues('confirmedAmountVnd'))
-          : null,
-        wrongAmountVnd: getValues('wrongAmountVnd') ? Number(getValues('wrongAmountVnd')) : null,
-      });
-      dispatch(appActions.flash(
-        `Đã tạo đơn PENDING: txnRef=${result.txnRef}, amount=${result.amountVnd} VND`,
-        'success',
-      ));
     } catch {
       // mutation cache handles API errors
     }
@@ -310,21 +336,31 @@ else
           </div>
         </div>
 
+        <div className="alert alert-info mb-3" style={{ fontSize: 13 }}>
+          <strong>Quy trình chuẩn bị (trên merchant):</strong>
+          <ol className="mb-0 mt-2 ps-3">
+            <li>Tạo <strong>giao dịch 1</strong> trên merchant (Pay) → đến màn <strong>OTP</strong> → dừng, copy <code>txnRef</code> + số tiền → nhập ô <strong>Case 5</strong>.</li>
+            <li>Tạo <strong>giao dịch 2</strong> (txnRef khác) → đến <strong>OTP</strong> → dừng → nhập ô <strong>Case 6</strong>.</li>
+            <li>Quay lại SIT → bấm <strong>Tiến hành kiểm tra tự động</strong>. Tool giả lập IPN (không cần xác nhận OTP trên cổng VNPay).</li>
+          </ol>
+        </div>
+
         <div className="alert alert-danger mb-3" style={{ fontSize: 13 }}>
-          <strong>Lưu ý:</strong>
+          <strong>Lưu ý case IPN:</strong>
           {' '}
-          Case 1 (97) và Case 2 (01) không cần đơn thật. Case 3, 5, 6 và
+          Case 1 (97) và Case 2 (01) không cần đơn thật. Case 3, 5 dùng
           {' '}
-          <strong>suite tự động</strong>
+          <strong>đơn Case 5</strong>
+          ; Case 6 dùng
           {' '}
-          dùng
+          <strong>đơn Case 6 riêng</strong>
+          . Mỗi đơn chỉ cập nhật DB một lần (RspCode
           {' '}
-          <strong>đơn PENDING</strong>
+          <code>00</code>
+          ); gọi lại IPN trả
           {' '}
-          (chưa thanh toán xong). Case 4 chạy lẻ nên dùng
-          {' '}
-          <strong>đơn đã SUCCESS</strong>
-          ; khi chạy suite, Case 4 tự dùng cùng đơn PENDING sau Case 5.
+          <code>02</code>
+          . Case 4 (suite) gửi lại IPN đơn Case 5 sau khi đã xác nhận.
           Merchant trả
           {' '}
           <code>01</code>
@@ -332,7 +368,7 @@ else
           → sai
           {' '}
           <code>txnRef</code>
-          /amount hoặc đơn chưa tồn tại.
+          /amount hoặc đơn chưa tồn tại trên merchant.
         </div>
 
         {hasUnexpectedOrderNotFound && (
@@ -341,14 +377,10 @@ else
             {' '}
             <strong>RspCode 01</strong>
             {' '}
-            (không tìm thấy đơn). Bấm
+            (không tìm thấy đơn). Kiểm tra lại
             {' '}
-            <strong>Tạo đơn test trên merchant</strong>
-            {' '}
-            hoặc tạo đơn PENDING trên merchant rồi nhập lại ô
-            {' '}
-            <strong>Đơn chờ thanh toán</strong>
-            .
+            <code>txnRef</code>
+            /số tiền đã nhập — đơn phải được tạo trên merchant và dừng ở OTP (chưa thanh toán xong).
           </div>
         )}
 
@@ -377,29 +409,18 @@ else
           </div>
 
           <div className="order-input-group mb-3">
-            <h4 className="order-input-title">Đơn chờ thanh toán (PENDING)</h4>
+            <h4 className="order-input-title">Đơn giao dịch thành công (Case 5)</h4>
             <p className="order-input-desc">
-              Dùng cho Case 3, 5, 6 và chạy suite tự động. Tạo đơn trên merchant (có thể dừng ở OTP).
+              Tạo trên merchant, dừng ở OTP. Dùng cho Case 3, Case 5; suite Case 4 gửi lại IPN trên đơn này.
             </p>
             <div className="row">
               <div className="col-lg-5">
                 <label className="form-label">Mã giao dịch (txnRef) *</label>
-                <div className="d-flex gap-2">
-                  <input
-                    className="form-control"
-                    placeholder="VD: ORDER20250616001"
-                    {...register('pendingTxnRef')}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-light-primary"
-                    style={{ whiteSpace: 'nowrap' }}
-                    onClick={onPrepareMerchantOrder}
-                    title="Gọi merchant tạo đơn test (endpoint /api/sit/prepare-order)"
-                  >
-                    Tạo đơn test
-                  </button>
-                </div>
+                <input
+                  className="form-control"
+                  placeholder="TxnRef từ merchant (GD 1, dừng OTP)"
+                  {...register('pendingTxnRef')}
+                />
               </div>
               <div className="col-lg-3">
                 <label className="form-label">Số tiền (VND) *</label>
@@ -413,10 +434,36 @@ else
             </div>
           </div>
 
-          <div className="order-input-group order-input-group-success mb-3">
-            <h4 className="order-input-title">Đơn đã thanh toán thành công (SUCCESS)</h4>
+          <div className="order-input-group order-input-group-failed mb-3">
+            <h4 className="order-input-title">Đơn giao dịch thất bại (Case 6)</h4>
             <p className="order-input-desc">
-              Dùng khi chạy <strong>Case 4</strong> đơn lẻ. Để trống nếu chạy suite (Case 4 dùng đơn PENDING sau Case 5).
+              Tạo <strong>giao dịch thứ hai</strong> trên merchant, dừng ở OTP — txnRef phải khác Case 5.
+            </p>
+            <div className="row">
+              <div className="col-lg-5">
+                <label className="form-label">Mã giao dịch (txnRef) *</label>
+                <input
+                  className="form-control"
+                  placeholder="TxnRef từ merchant (GD 2, dừng OTP)"
+                  {...register('failedTxnRef')}
+                />
+              </div>
+              <div className="col-lg-3">
+                <label className="form-label">Số tiền (VND)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="Mặc định: giống Case 5"
+                  {...register('failedAmountVnd', { min: 1 })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="order-input-group order-input-group-success mb-3">
+            <h4 className="order-input-title">Đơn đã thanh toán thành công (Case 4)</h4>
+            <p className="order-input-desc">
+              Dùng khi chạy <strong>Case 4</strong> đơn lẻ. Tự điền sau khi Case 5 PASS; để trống nếu chạy suite.
             </p>
             <div className="row">
               <div className="col-lg-5">

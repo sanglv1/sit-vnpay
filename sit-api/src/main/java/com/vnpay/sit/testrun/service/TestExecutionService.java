@@ -200,6 +200,7 @@ public class TestExecutionService {
         TestRun saved = testRunRepository.save(run);
         testSessionService.mergeTestInputFromRun(
                 form.getSessionId(),
+                form.getTestCase(),
                 form.getTxnRef().trim(),
                 form.getAmountVnd(),
                 form.getWrongAmountVnd(),
@@ -212,6 +213,7 @@ public class TestExecutionService {
     public TestSuiteResponse executeIpnSuite(TestSuiteForm form, SitUserPrincipal principal) {
         requireRunnableSession(form.getSessionId(), principal);
         PartnerConfig partner = partnerService.requireAccessible(form.getPartnerId(), principal);
+        requireDistinctSuccessAndFailedTxnRef(form.getTxnRef(), form.getFailedTxnRef());
 
         long wrongAmount = form.getWrongAmountVnd() != null
                 ? form.getWrongAmountVnd()
@@ -227,8 +229,7 @@ public class TestExecutionService {
             runForm.setSessionId(form.getSessionId());
             runForm.setCallbackType(CallbackType.IPN);
             runForm.setTestCase(testCase);
-            runForm.setTxnRef(form.getTxnRef().trim());
-            runForm.setAmountVnd(form.getAmountVnd());
+            applySuiteOrder(runForm, form, testCase);
             if (testCase == TestCaseType.WRONG_AMOUNT) {
                 runForm.setWrongAmountVnd(wrongAmount);
             }
@@ -239,6 +240,7 @@ public class TestExecutionService {
         int passed = (int) steps.stream().filter(TestSuiteStepResponse::isPassed).count();
         return TestSuiteResponse.builder()
                 .txnRef(form.getTxnRef().trim())
+                .failedTxnRef(form.getFailedTxnRef().trim())
                 .partnerName(partner.getName())
                 .sessionId(form.getSessionId())
                 .totalSteps(steps.size())
@@ -250,22 +252,23 @@ public class TestExecutionService {
 
     public List<TestRunResponse> findLatestRunsForSession(Long sessionId, SitUserPrincipal principal) {
         accessControlService.requireSessionAccess(sessionId, principal);
-        List<TestRun> runs = testRunRepository.findLatestPerTestCaseBySessionId(sessionId);
-        return toResponses(runs);
+        return toResponses(findEffectiveRunsForSession(sessionId));
+    }
+
+    private List<TestRun> findEffectiveRunsForSession(Long sessionId) {
+        return TestRunGrouping.effectiveRunsList(
+                testRunRepository.findBySessionIdOrderByCreatedAtDesc(sessionId),
+                run -> true
+        );
     }
 
     private Map<TestCaseType, TestRun> latestAutoIpnRunsByCase(Long sessionId) {
-        Map<TestCaseType, TestRun> latestByCase = new LinkedHashMap<>();
-        for (TestRun run : testRunRepository.findLatestPerTestCaseBySessionId(sessionId)) {
-            if (run.getCallbackType() != CallbackType.IPN) {
-                continue;
-            }
-            if (!TestCaseType.ipnSuiteExecutionOrder().contains(run.getTestCase())) {
-                continue;
-            }
-            latestByCase.putIfAbsent(run.getTestCase(), run);
-        }
-        return latestByCase;
+        Map<TestCaseType, TestRun> effective = TestRunGrouping.effectiveByTestCase(
+                testRunRepository.findBySessionIdOrderByCreatedAtDesc(sessionId),
+                run -> run.getCallbackType() == CallbackType.IPN
+                        && TestCaseType.ipnSuiteExecutionOrder().contains(run.getTestCase())
+        );
+        return new LinkedHashMap<>(effective);
     }
 
     public Optional<TestSuiteResponse> getIpnSuiteResult(Long sessionId, SitUserPrincipal principal) {
@@ -281,6 +284,7 @@ public class TestExecutionService {
 
         String partnerName = latestByCase.values().iterator().next().getPartnerName();
         String txnRef = null;
+        String failedTxnRef = null;
         List<TestSuiteStepResponse> steps = new ArrayList<>();
         int stepNum = 1;
         for (TestCaseType testCase : TestCaseType.ipnSuiteExecutionOrder()) {
@@ -296,7 +300,11 @@ public class TestExecutionService {
                         .passed(false)
                         .build());
             } else {
-                if (txnRef == null && run.getTxnRef() != null) {
+                if (testCase == TestCaseType.FAILED) {
+                    failedTxnRef = run.getTxnRef();
+                } else if (txnRef == null && run.getTxnRef() != null
+                        && testCase != TestCaseType.INVALID_HASH
+                        && testCase != TestCaseType.ORDER_NOT_FOUND) {
                     txnRef = run.getTxnRef();
                 }
                 steps.add(TestSuiteStepResponse.from(stepNum++, testCase, run));
@@ -308,12 +316,32 @@ public class TestExecutionService {
         return Optional.of(TestSuiteResponse.builder()
                 .sessionId(sessionId)
                 .txnRef(txnRef != null ? txnRef : "")
+                .failedTxnRef(failedTxnRef != null ? failedTxnRef : "")
                 .partnerName(partnerName != null ? partnerName : "")
                 .totalSteps(total)
                 .passedSteps(passed)
                 .allPassed(passed == total)
                 .steps(steps)
                 .build());
+    }
+
+    private static void applySuiteOrder(TestRunForm runForm, TestSuiteForm form, TestCaseType testCase) {
+        if (testCase == TestCaseType.FAILED) {
+            runForm.setTxnRef(form.getFailedTxnRef().trim());
+            runForm.setAmountVnd(form.getFailedAmountVnd() != null ? form.getFailedAmountVnd() : form.getAmountVnd());
+            return;
+        }
+        runForm.setTxnRef(form.getTxnRef().trim());
+        runForm.setAmountVnd(form.getAmountVnd());
+    }
+
+    private static void requireDistinctSuccessAndFailedTxnRef(String successTxnRef, String failedTxnRef) {
+        if (!StringUtils.hasText(failedTxnRef)) {
+            throw new IllegalArgumentException("Nhập mã giao dịch thất bại (Case 6)");
+        }
+        if (successTxnRef.trim().equalsIgnoreCase(failedTxnRef.trim())) {
+            throw new IllegalArgumentException("txnRef Case 5 (thành công) và Case 6 (thất bại) phải khác nhau");
+        }
     }
 
     public PrepareOrderResponse prepareMerchantOrder(PrepareMerchantOrderForm form, SitUserPrincipal principal) {
@@ -343,7 +371,7 @@ public class TestExecutionService {
             String txnRef = node.path("txnRef").asText(null);
             if (txnRef == null || txnRef.isBlank()) {
                 throw new IllegalArgumentException(
-                        "Merchant chưa hỗ trợ POST /api/sit/prepare-order — tạo đơn thủ công trên merchant rồi nhập txnRef");
+                        "Merchant chưa hỗ trợ prepare-order — tạo 2 GD trên merchant (dừng OTP), nhập txnRef vào form SIT");
             }
             long amountVnd = node.path("amountVnd").asLong(form.getAmountVnd());
             return PrepareOrderResponse.builder()
@@ -353,7 +381,7 @@ public class TestExecutionService {
                     .build();
         } catch (RestClientException ex) {
             throw new IllegalArgumentException(
-                    "Không gọi được " + prepareUrl + ". Kiểm tra merchant đang chạy và có endpoint /api/sit/prepare-order. "
+                    "Không gọi được " + prepareUrl + ". Tạo đơn thủ công trên merchant (đến OTP, copy txnRef) rồi nhập vào form SIT. "
                             + ex.getMessage());
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Phản hồi prepare-order không phải JSON hợp lệ");

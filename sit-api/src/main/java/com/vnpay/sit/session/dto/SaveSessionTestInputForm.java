@@ -15,5 +15,9 @@ public class SaveSessionTestInputForm {
 
     private Long confirmedAmountVnd;
 
+    private String failedTxnRef;
+
+    private Long failedAmountVnd;
+
     private Long wrongAmountVnd;
 }

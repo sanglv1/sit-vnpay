@@ -130,6 +130,12 @@ public class TestSessionService {
         if (form.getConfirmedAmountVnd() != null) {
             session.setConfirmedAmountVnd(form.getConfirmedAmountVnd());
         }
+        if (form.getFailedTxnRef() != null) {
+            session.setFailedTxnRef(form.getFailedTxnRef().trim());
+        }
+        if (form.getFailedAmountVnd() != null) {
+            session.setFailedAmountVnd(form.getFailedAmountVnd());
+        }
         if (form.getWrongAmountVnd() != null) {
             session.setWrongAmountVnd(form.getWrongAmountVnd());
         }
@@ -140,19 +146,31 @@ public class TestSessionService {
     @Transactional
     public void mergeTestInputFromRun(
             Long sessionId,
-            String pendingTxnRef,
-            long pendingAmountVnd,
+            TestCaseType testCase,
+            String txnRef,
+            long amountVnd,
             Long wrongAmountVnd,
             SitUserPrincipal principal
     ) {
-        if (sessionId == null || !StringUtils.hasText(pendingTxnRef)) {
+        if (sessionId == null || !StringUtils.hasText(txnRef)) {
             return;
         }
         TestSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiên kiểm thử"));
         accessControlService.requireSessionAccess(session, principal);
-        session.setPendingTxnRef(pendingTxnRef.trim());
-        session.setPendingAmountVnd(pendingAmountVnd);
+
+        String normalizedTxnRef = txnRef.trim();
+        if (testCase == TestCaseType.FAILED) {
+            session.setFailedTxnRef(normalizedTxnRef);
+            session.setFailedAmountVnd(amountVnd);
+        } else if (testCase == TestCaseType.SUCCESS || testCase == TestCaseType.WRONG_AMOUNT) {
+            session.setPendingTxnRef(normalizedTxnRef);
+            session.setPendingAmountVnd(amountVnd);
+        }
+        if (testCase == TestCaseType.SUCCESS) {
+            session.setConfirmedTxnRef(normalizedTxnRef);
+            session.setConfirmedAmountVnd(amountVnd);
+        }
         if (wrongAmountVnd != null) {
             session.setWrongAmountVnd(wrongAmountVnd);
         }

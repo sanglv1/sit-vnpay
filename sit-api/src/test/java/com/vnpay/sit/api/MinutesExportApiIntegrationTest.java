@@ -414,7 +414,9 @@ class MinutesExportApiIntegrationTest {
         StringBuilder sb = new StringBuilder("{");
         sb.append("\"vnp_txn_ref\":\"").append(txnRef).append("\"");
         sb.append(",\"vnp_tmn_code\":\"").append(tmnCode).append("\"");
-        sb.append(",\"vnp_command\":\"pay_and_create\"");
+        sb.append(",\"vnp_command\":\"pay_n_recurring\"");
+        sb.append(",\"vnp_order_info\":\"SIT test ").append(txnRef).append("\"");
+        sb.append(",\"vnp_curr_code\":\"VND\"");
         if (responseCode != null) {
             sb.append(",\"vnp_response_code\":\"").append(responseCode).append("\"");
         }

@@ -4,6 +4,7 @@ import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.TestCaseType;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,7 +43,7 @@ public final class CallbackParamBuilder {
             }
             case RECURRING -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
-                putSnakeCaseCommandFields(params, txnRef, "recurring_pay");
+                putRecurringIpnFields(params, txnRef, testCase);
             }
         }
 
@@ -102,6 +103,30 @@ public final class CallbackParamBuilder {
         params.put("vnp_app_user_id", SIT_APP_USER_ID);
         params.put("vnp_txn_desc", "SIT test " + txnRef);
         params.put("vnp_curr_code", "VND");
+    }
+
+    /** IPN Recurring thật từ VNPay dùng pay_n_recurring + vnp_order_info (không phải vnp_txn_desc). */
+    private static void putRecurringIpnFields(Map<String, String> params, String txnRef, TestCaseType testCase) {
+        params.put("vnp_command", "pay_n_recurring");
+        params.put("vnp_app_user_id", SIT_APP_USER_ID);
+        params.put("vnp_order_info", "SIT test " + txnRef);
+        params.put("vnp_curr_code", "VND");
+        if (testCase == TestCaseType.SUCCESS) {
+            params.put("vnp_bank_code", "VISA");
+            params.put("vnp_bank_tran_no", String.valueOf(System.currentTimeMillis()) + "001");
+            params.put("vnp_card_number", "445653xxxxxx1096");
+            params.put("vnp_card_type", "ATM");
+            params.put("vnp_token", "SIT_TOKEN_" + txnRef);
+            params.put("vnp_token_exp_date", formatTokenExpDate());
+        }
+    }
+
+    private static String formatTokenExpDate() {
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+        calendar.add(Calendar.YEAR, 1);
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd");
+        formatter.setTimeZone(TimeZone.getTimeZone("Etc/GMT+7"));
+        return formatter.format(calendar.getTime());
     }
 
     private static String responseCode(TestCaseType testCase) {

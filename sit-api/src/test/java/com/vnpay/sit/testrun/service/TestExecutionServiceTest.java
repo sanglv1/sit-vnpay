@@ -197,6 +197,7 @@ class TestExecutionServiceTest {
         form.setPartnerId(1L);
         form.setSessionId(5L);
         form.setTxnRef("SUITE001");
+        form.setFailedTxnRef("SUITE002");
         form.setAmountVnd(150_000L);
         form.setWrongAmountVnd(151_000L);
 
@@ -210,8 +211,23 @@ class TestExecutionServiceTest {
     }
 
     @Test
-    void getIpnSuiteResult_shouldBuildFromLatestSessionRuns() {
-        when(testRunRepository.findLatestPerTestCaseBySessionId(2L)).thenReturn(List.of(
+    void executeIpnSuite_sameTxnRefForSuccessAndFailed_shouldThrow() {
+        TestSuiteForm form = new TestSuiteForm();
+        form.setPartnerId(1L);
+        form.setSessionId(5L);
+        form.setTxnRef("SAME001");
+        form.setFailedTxnRef("SAME001");
+        form.setAmountVnd(100_000L);
+
+        assertThatThrownBy(() -> testExecutionService.executeIpnSuite(form, adminPrincipal()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("phải khác nhau");
+    }
+
+    @Test
+    void getIpnSuiteResult_shouldBuildFromEffectiveSessionRuns() {
+        when(testRunRepository.findBySessionIdOrderByCreatedAtDesc(2L)).thenReturn(List.of(
+                runForCase(TestCaseType.SUCCESS, false, "02", 210L),
                 runForCase(TestCaseType.SUCCESS, true, "00", 200L),
                 runForCase(TestCaseType.INVALID_HASH, true, "97", 201L)
         ));
@@ -227,13 +243,18 @@ class TestExecutionServiceTest {
         assertThat(suite.get().getSteps()).hasSize(6);
         assertThat(suite.get().getSteps().get(0).getTestCase()).isEqualTo(TestCaseType.INVALID_HASH);
         assertThat(suite.get().getSteps().get(0).isPassed()).isTrue();
+        assertThat(suite.get().getSteps().stream()
+                .filter(step -> step.getTestCase() == TestCaseType.SUCCESS)
+                .findFirst()
+                .orElseThrow()
+                .isPassed()).isTrue();
         assertThat(suite.get().getSteps().get(5).getTestCase()).isEqualTo(TestCaseType.ORDER_ALREADY_CONFIRMED);
         assertThat(suite.get().getSteps().get(5).isPassed()).isFalse();
     }
 
     @Test
     void getIpnSuiteResult_withoutRuns_shouldReturnEmpty() {
-        when(testRunRepository.findLatestPerTestCaseBySessionId(99L)).thenReturn(List.of());
+        when(testRunRepository.findBySessionIdOrderByCreatedAtDesc(99L)).thenReturn(List.of());
 
         assertThat(testExecutionService.getIpnSuiteResult(99L)).isEmpty();
     }

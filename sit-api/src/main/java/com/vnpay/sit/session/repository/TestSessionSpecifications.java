@@ -40,6 +40,7 @@ public final class TestSessionSpecifications {
             predicates.add(cb.like(cb.lower(cb.coalesce(root.get("tmnCode"), "")), pattern));
             predicates.add(cb.like(cb.lower(cb.coalesce(root.get("pendingTxnRef"), "")), pattern));
             predicates.add(cb.like(cb.lower(cb.coalesce(root.get("confirmedTxnRef"), "")), pattern));
+            predicates.add(cb.like(cb.lower(cb.coalesce(root.get("failedTxnRef"), "")), pattern));
             predicates.add(cb.like(cb.lower(cb.coalesce(root.get("partnerName"), "")), pattern));
             predicates.add(cb.like(cb.lower(cb.coalesce(root.get("createdByEmail"), "")), pattern));
 

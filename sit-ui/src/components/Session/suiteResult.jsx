@@ -44,7 +44,13 @@ const SessionSuiteResult = () => {
               </span>
             </h3>
             <div className="text-muted mt-1" style={{ fontSize: 13 }}>
-              TxnRef: <strong>{suite.txnRef}</strong>
+              TxnRef thành công: <strong>{suite.txnRef}</strong>
+              {suite.failedTxnRef && (
+                <>
+                  {' '}
+                  · TxnRef thất bại: <strong>{suite.failedTxnRef}</strong>
+                </>
+              )}
             </div>
           </div>
           <button type="button" className="btn btn-light-primary btn-sm" onClick={() => navigate(`/sessions/${sessionId}/auto`)}>
