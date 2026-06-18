@@ -72,6 +72,30 @@ class MinutesExportApiIntegrationTest {
     }
 
     @Test
+    void exportMinutes_withoutQc_shouldReject() throws Exception {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setName("Merchant A");
+        partner.setFlow(PaymentFlow.PAY);
+        partner.setTmnCode("TMN999");
+        partner.setSecretKey("secret");
+        partner.setReturnUrl("https://merchant.test/return");
+        partner.setIpnUrl("https://merchant.test/ipn");
+        partner.setCreatedByEmail("owner@merchant.test");
+        partner = partnerConfigRepository.save(partner);
+
+        TestSession session = new TestSession();
+        session.setPartnerId(partner.getId());
+        session.setPartnerName(partner.getName());
+        session.setTmnCode(partner.getTmnCode());
+        session.setCreatedByEmail("qc@merchant.test");
+        session.setStatus("OPEN");
+        session = testSessionRepository.save(session);
+
+        mockMvc.perform(get("/api/sessions/{id}/export-minutes", session.getId()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void exportMinutes_shouldRenderImportantFieldsIntoDocx() throws Exception {
         PartnerConfig partner = new PartnerConfig();
         partner.setName("Merchant A");

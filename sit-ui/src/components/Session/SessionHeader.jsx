@@ -1,13 +1,19 @@
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { useExportMinutesMutation } from '../../api/hooks';
+import { useExportMinutesMutation, useManualAcceptanceQuery } from '../../api/hooks';
 import { appActions } from '../../stores';
 
 const SessionHeader = ({ session, onRerunAll }) => {
   const dispatch = useDispatch();
   const exportMinutes = useExportMinutesMutation();
+  const { data: qcResult } = useManualAcceptanceQuery(session?.id, { enabled: Boolean(session?.id) });
+  const qcSaved = Boolean(qcResult?.id);
 
   const onExportMinutes = async () => {
+    if (!qcSaved) {
+      dispatch(appActions.flash('Lưu kết quả QC trước khi xuất biên bản', 'warning'));
+      return;
+    }
     try {
       const filename = `VNPAYGW-${session.tmnCode}-SIT.docx`;
       await exportMinutes.mutateAsync({ sessionId: session.id, filename });
@@ -33,7 +39,13 @@ const SessionHeader = ({ session, onRerunAll }) => {
         </div>
       </div>
       <div className="d-flex gap-2">
-        <button type="button" className="btn btn-light-primary btn-sm" onClick={onExportMinutes}>
+        <button
+          type="button"
+          className="btn btn-light-primary btn-sm"
+          onClick={onExportMinutes}
+          disabled={!qcSaved}
+          title={qcSaved ? undefined : 'Lưu kết quả QC trước khi xuất biên bản'}
+        >
           <i className="ri-file-download-line" /> Xuất biên bản
         </button>
         {onRerunAll && (

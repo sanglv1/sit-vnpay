@@ -61,7 +61,8 @@ public class MinutesExportService {
                 .filter(run -> run.getCallbackType() == CallbackType.IPN)
                 .toList();
 
-        ManualAcceptance manual = manualAcceptanceService.findLatestBySession(sessionId).orElse(null);
+        ManualAcceptance manual = manualAcceptanceService.findLatestBySession(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Lưu kết quả QC trước khi xuất biên bản"));
 
         MinutesExportContext context = MinutesExportContext.builder()
                 .session(session)

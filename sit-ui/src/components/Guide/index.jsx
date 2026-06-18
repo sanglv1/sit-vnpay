@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import Breadcrumbs from '../Shared/Breadcrumbs';
 import { useI18n } from '../../i18n/useI18n';
+import { FLOW_CODES, getFlowLabel } from '../../i18n/flowLabels';
 import { getGuideContent } from '../../i18n/guideContent';
 
 const FLOW_BADGE_CLASS = {
@@ -25,9 +26,14 @@ const renderRichText = (text) => {
   });
 };
 
-const FlowBadge = ({ flow }) => (
-  <span className={`guide-flow-badge ${FLOW_BADGE_CLASS[flow] || ''}`}>{flow}</span>
-);
+const FlowBadge = ({ flow }) => {
+  const { t } = useI18n();
+  return (
+    <span className={`guide-flow-badge ${FLOW_BADGE_CLASS[flow] || ''}`}>
+      {getFlowLabel(t, flow)}
+    </span>
+  );
+};
 
 const ModeBadge = ({ mode }) => {
   const isAuto = mode === 'Tự động' || mode === 'Auto';
@@ -42,30 +48,17 @@ const RspBadge = ({ code }) => (
   <span className="guide-rsp-badge">{code}</span>
 );
 
-const FlowDiagram = ({ main, tail, labels }) => (
+const FlowDiagram = ({ nodes, labels }) => (
   <div className="guide-flow">
     <div className="guide-flow-label">{labels.flowOverview}</div>
-    <div className="guide-flow-row">
-      {main.map((node, i) => (
-        <div key={`main-${i}`} className="guide-flow-node-wrap">
+    <div className="guide-flow-track">
+      {nodes.map((node, i) => (
+        <div key={node.step} className="guide-flow-node-wrap">
           {i > 0 && <span className="guide-flow-arrow" aria-hidden>→</span>}
-          <a href={`#guide-step-${node.step}`} className="guide-flow-node">
-            <span className="guide-flow-node-num">{labels.step} {node.step}</span>
-            <span className="guide-flow-node-label">{node.label}</span>
-            {node.tag && <span className="guide-flow-node-tag">{node.tag}</span>}
-          </a>
-        </div>
-      ))}
-    </div>
-    <div className="guide-flow-branch" aria-hidden>↓</div>
-    <div className="guide-flow-row guide-flow-row-tail">
-      {tail.map((node, i) => (
-        <div key={`tail-${i}`} className="guide-flow-node-wrap">
-          {i > 0 && <span className="guide-flow-arrow" aria-hidden>→</span>}
-          <a href={`#guide-step-${node.step}`} className="guide-flow-node guide-flow-node-secondary">
-            {node.step && <span className="guide-flow-node-num">{labels.step} {node.step}</span>}
-            <span className="guide-flow-node-label">{node.label}</span>
-            {node.tag && <span className="guide-flow-node-tag">{node.tag}</span>}
+          <a href={`#guide-step-${node.step}`} className="guide-flow-pill">
+            <span className="guide-flow-pill-num">{node.step}</span>
+            <span className="guide-flow-pill-label">{node.label}</span>
+            {node.tag && <span className="guide-flow-pill-tag">{node.tag}</span>}
           </a>
         </div>
       ))}
@@ -73,46 +66,95 @@ const FlowDiagram = ({ main, tail, labels }) => (
   </div>
 );
 
-const GuideTable = ({ headers, rows, highlightLast, centerCols = [], flowCol, modeCol, rspCol }) => (
-  <div className="table-wrap">
-    <table className="table table-striped guide-table">
-      <thead>
-        <tr>
-          {headers.map((h, i) => (
-            <th
-              key={h}
-              className={centerCols.includes(i) ? 'text-center' : undefined}
-            >
-              {h}
-            </th>
+const FlowLegend = () => {
+  const { t } = useI18n();
+  return (
+    <div className="guide-flow-legend" aria-label={t('common.flow')}>
+      {FLOW_CODES.map((flow) => (
+        <FlowBadge key={flow} flow={flow} />
+      ))}
+    </div>
+  );
+};
+
+const GUIDE_TABLE_VARIANTS = {
+  fields: {
+    cols: ['guide-col-field', 'guide-col-desc'],
+    center: [],
+  },
+  ipn: {
+    cols: ['guide-col-step', 'guide-col-case', 'guide-col-scenario', 'guide-col-rsp'],
+    center: [0, 1, 3],
+  },
+  manual: {
+    cols: ['guide-col-item', 'guide-col-content', 'guide-col-howto'],
+    center: [1],
+  },
+  checklist: {
+    cols: ['guide-col-num', 'guide-col-task', 'guide-col-mode'],
+    center: [0, 2],
+  },
+};
+
+const GuideTable = ({
+  variant = 'fields',
+  headers,
+  rows = [],
+  highlightLast,
+  flowCol,
+  modeCol,
+  rspCol,
+  compact,
+}) => {
+  const config = GUIDE_TABLE_VARIANTS[variant] || GUIDE_TABLE_VARIANTS.fields;
+  const centerCols = config.center;
+
+  return (
+    <div className={`sit-list-table-wrap guide-table-wrap${compact ? ' guide-table-wrap--compact' : ''}`}>
+      <table className={`table data-table guide-table guide-table--${variant}${compact ? ' guide-table--compact' : ''}`}>
+        <colgroup>
+          {config.cols.map((colClass) => (
+            <col key={colClass} className={colClass} />
           ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr key={i}>
-            {row.map((cell, j) => (
-              <td
-                key={j}
-                className={centerCols.includes(j) ? 'text-center' : undefined}
+        </colgroup>
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th
+                key={h}
+                className={`guide-col ${config.cols[i] || ''}${centerCols.includes(i) ? ' guide-col--center' : ' guide-col--start'}`}
               >
-                {flowCol === j
-                  ? <FlowBadge flow={cell} />
-                  : modeCol === j
-                    ? <ModeBadge mode={cell} />
-                    : rspCol === j
-                      ? <RspBadge code={cell} />
-                      : highlightLast && j === row.length - 1
-                        ? <RspBadge code={cell} />
-                        : renderRichText(cell)}
-              </td>
+                {h}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i}>
+              {row.map((cell, j) => (
+                <td
+                  key={j}
+                  className={`guide-col ${config.cols[j] || ''}${centerCols.includes(j) ? ' guide-col--center' : ' guide-col--start'}`}
+                >
+                  {flowCol === j
+                    ? <FlowBadge flow={cell} />
+                    : modeCol === j
+                      ? <ModeBadge mode={cell} />
+                      : rspCol === j
+                        ? <RspBadge code={cell} />
+                        : highlightLast && j === row.length - 1
+                          ? <RspBadge code={cell} />
+                          : renderRichText(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 const IpnLogicSteps = ({ steps, whenLabel }) => (
   <ol className="guide-ipn-logic">
@@ -131,15 +173,6 @@ const IpnLogicSteps = ({ steps, whenLabel }) => (
     ))}
   </ol>
 );
-
-const ScreenPath = ({ path }) => {
-  const staticPath = path.replace('{id}', ':id');
-  const canLink = !path.includes('{id}');
-  if (canLink) {
-    return <Link to={path} className="guide-path-link"><code>{path}</code></Link>;
-  }
-  return <code className="guide-inline-code">{staticPath}</code>;
-};
 
 const StepCard = ({ step, labels }) => (
   <section className="guide-step" id={`guide-step-${step.id}`}>
@@ -167,14 +200,10 @@ const StepCard = ({ step, labels }) => (
       <>
         <h4 className="guide-subtitle">{labels.partnerFieldsTitle}</h4>
         <GuideTable
+          variant="fields"
           headers={[labels.field, labels.description]}
           rows={step.partnerFields}
-        />
-        <h4 className="guide-subtitle">{labels.flowDiffTitle}</h4>
-        <GuideTable
-          headers={[labels.flow, labels.feature]}
-          rows={step.flowDiff}
-          flowCol={0}
+          compact
         />
       </>
     )}
@@ -183,8 +212,10 @@ const StepCard = ({ step, labels }) => (
       <>
         <h4 className="guide-subtitle">{labels.paramsTitle}</h4>
         <GuideTable
+          variant="fields"
           headers={[labels.param, labels.description]}
           rows={step.params}
+          compact
         />
       </>
     )}
@@ -204,80 +235,66 @@ const StepCard = ({ step, labels }) => (
       <>
         <h4 className="guide-subtitle">{labels.ipnCasesTitle}</h4>
         <GuideTable
+          variant="ipn"
           headers={[labels.step, labels.case, labels.scenario, labels.rspCode]}
           rows={step.ipnCases}
           highlightLast
-          centerCols={[0, 1, 3]}
+          compact
         />
-        <h4 className="guide-subtitle">{labels.passCriteriaTitle}</h4>
-        <p className="guide-pass-criteria">{renderRichText(step.passCriteria)}</p>
-        <h4 className="guide-subtitle">{labels.ipnLogicTitle}</h4>
-        <IpnLogicSteps steps={step.ipnLogic} whenLabel={labels.when} />
+        {step.passCriteria && (
+          <p className="guide-pass-criteria">{renderRichText(step.passCriteria)}</p>
+        )}
+        {step.ipnLogic && (
+          <>
+            <h4 className="guide-subtitle">{labels.ipnLogicTitle}</h4>
+            <IpnLogicSteps steps={step.ipnLogic} whenLabel={labels.when} />
+          </>
+        )}
       </>
     )}
 
     {step.manualItems && (
       <GuideTable
+        variant="manual"
         headers={[labels.item, labels.content, labels.howTo]}
         rows={step.manualItems}
+        compact
       />
     )}
 
     {step.saveNote && <p className="guide-text guide-text-muted">{renderRichText(step.saveNote)}</p>}
 
-    {step.resultScreens && (
-      <>
-        <div className="table-wrap">
-          <table className="table table-striped guide-table">
-            <thead>
-              <tr>
-                <th>{labels.screen}</th>
-                <th>{labels.description}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {step.resultScreens.map(([path, desc]) => (
-                <tr key={path}>
-                  <td><ScreenPath path={path} /></td>
-                  <td>{renderRichText(desc)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {step.exportNote && (
-          <>
-            <h4 className="guide-subtitle">{labels.exportTitle}</h4>
-            <p className="guide-text">{renderRichText(step.exportNote)}</p>
-          </>
-        )}
-      </>
+    {step.exportNote && (
+      <p className="guide-text">{renderRichText(step.exportNote)}</p>
     )}
   </section>
 );
 
 const Guide = () => {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const content = getGuideContent(locale);
   const { labels } = content;
+  const flowNodes = [...content.flowMain, ...content.flowTail];
 
   return (
     <>
       <Breadcrumbs title={content.title} />
-      <div className="card-header guide-page-header">
+      <div className="card-header guide-page-header sit-page-header">
         <div>
-          <h3 className="card-title mb-1">{content.title}</h3>
-          <p className="guide-page-subtitle mb-0">{content.subtitle}</p>
+          <h3 className="card-title mb-0">{content.title}</h3>
+          <p className="sit-page-subtitle mb-0">{content.subtitle}</p>
         </div>
         <Link to="/sessions/new" className="btn btn-primary btn-sm">
-          <i className="ri-add-line" /> {locale === 'en' ? 'New session' : 'Tạo phiên kiểm thử'}
+          <i className="ri-add-line" /> {t('sessions.create')}
         </Link>
       </div>
 
       <div className="card-body guide-page-body">
-        <p className="guide-intro">{content.intro}</p>
-
-        <FlowDiagram main={content.flowMain} tail={content.flowTail} labels={labels} />
+        <div className="guide-top">
+          <p className="guide-intro">{content.intro}</p>
+          <FlowLegend />
+          <FlowDiagram nodes={flowNodes} labels={labels} />
+        </div>
 
         <nav className="guide-toc" aria-label={content.title}>
           <div className="guide-toc-title">{labels.tocTitle}</div>
@@ -300,10 +317,11 @@ const Guide = () => {
         <section className="guide-checklist">
           <h3 className="guide-checklist-title">{content.checklistTitle}</h3>
           <GuideTable
+            variant="checklist"
             headers={['#', labels.task, labels.mode]}
             rows={content.checklist.map((row, i) => [String(i + 1), row[0], row[1]])}
-            centerCols={[0, 2]}
             modeCol={2}
+            compact
           />
         </section>
       </div>

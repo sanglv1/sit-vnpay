@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import SessionHeader from './SessionHeader';
 import AcceptanceTabs from './AcceptanceTabs';
+import { useI18n } from '../../i18n/useI18n';
 import {
   useManualAcceptanceQuery,
   useSaveManualAcceptanceMutation,
@@ -50,10 +51,11 @@ const RadioPair = ({ name, label, description, register, trueLabel, falseLabel }
 const SessionManual = () => {
   const { sessionId } = useParams();
   const dispatch = useDispatch();
+  const { t } = useI18n();
   const [successPreview, setSuccessPreview] = useState(null);
   const [failedPreview, setFailedPreview] = useState(null);
   const { register, handleSubmit, reset, setValue } = useForm();
-  const { data: session } = useSessionQuery(sessionId);
+  const { data: session, isLoading: sessionLoading } = useSessionQuery(sessionId);
   const { data: acceptance, isFetched: acceptanceLoaded } = useManualAcceptanceQuery(sessionId, {
     enabled: Boolean(session),
   });
@@ -123,6 +125,17 @@ const SessionManual = () => {
     }
   };
 
+  if (sessionLoading) {
+    return (
+      <div className="card-body">
+        <div className="sit-list-loading">
+          <i className="ri-loader-4-line" aria-hidden="true" />
+          <span>{t('common.loading')}</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!session) return null;
 
   return (
@@ -132,11 +145,14 @@ const SessionManual = () => {
       </div>
       <AcceptanceTabs />
 
-      <div className="card-header">
-        <div className="d-flex justify-content-between align-items-center">
-          <h3 className="card-title mb-0">Nghiệm thu thủ công</h3>
+      <div className="card-header sit-page-header">
+        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h3 className="card-title mb-0">{t('sessions.manualTitle')}</h3>
+            <p className="sit-page-subtitle mb-0">{t('sessions.manualSubtitle')}</p>
+          </div>
           <button type="button" className="btn btn-primary btn-sm" onClick={handleSubmit(onSubmit)}>
-            <i className="ri-save-line" /> Lưu kết quả QC
+            <i className="ri-save-line" /> {t('sessions.saveQc')}
           </button>
         </div>
       </div>
@@ -201,7 +217,7 @@ const SessionManual = () => {
           </div>
           <div className="form-footer">
             <button type="submit" className="btn btn-primary">
-              <i className="ri-save-line" /> Lưu kết quả QC
+              <i className="ri-save-line" /> {t('sessions.saveQc')}
             </button>
           </div>
         </form>
