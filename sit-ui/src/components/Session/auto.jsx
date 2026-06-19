@@ -122,7 +122,7 @@ const SessionAuto = () => {
   const ipnLogic = useMemo(() => buildIpnLogic(t), [t]);
   const rspCodes = useMemo(() => buildRspCodes(t), [t]);
 
-  const { data: workspace, isLoading: workspaceLoading } = useSessionWorkspaceQuery(sessionId);
+  const { data: workspace } = useSessionWorkspaceQuery(sessionId);
   const session = workspace?.session;
   const metadata = workspace ? { testCases: workspace.testCases } : null;
   const runTest = useRunTestMutation(sessionId);
@@ -289,18 +289,19 @@ const SessionAuto = () => {
       && run.expectedRspCode !== '01',
   );
 
-  if (workspaceLoading) {
+  if (!session || !metadata) {
     return (
-      <div className="card-body">
-        <div className="sit-list-loading">
-          <i className="ri-loader-4-line" aria-hidden="true" />
-          <span>{t('common.loading')}</span>
+      <>
+        <AcceptanceTabs />
+        <div className="card-body">
+          <div className="sit-list-loading sit-list-loading--compact">
+            <i className="ri-loader-4-line" aria-hidden="true" />
+            <span>{t('common.loading')}</span>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
-
-  if (!session || !metadata) return null;
 
   return (
     <>

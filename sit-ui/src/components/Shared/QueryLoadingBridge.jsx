@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { useIsFetching, useIsMutating } from '@tanstack/react-query';
+import { useIsMutating } from '@tanstack/react-query';
 import { appActions } from '../../stores';
 
-/** Sync React Query in-flight state to the global loading overlay. */
+/** Sync user-initiated mutations to the global loading overlay (not background reads). */
 export default function QueryLoadingBridge() {
   const dispatch = useDispatch();
-  const fetching = useIsFetching();
-  const mutating = useIsMutating();
-  const busy = fetching > 0 || mutating > 0;
+  const mutating = useIsMutating({
+    predicate: (mutation) => !mutation.meta?.silent,
+  });
+  const busy = mutating > 0;
 
   useEffect(() => {
     if (busy) {

@@ -16,6 +16,7 @@ export function usePartnersQuery() {
   return useQuery({
     queryKey: queryKeys.partners.all,
     queryFn: () => sitApi.partners.list(),
+    meta: { silent: true },
   });
 }
 
@@ -24,6 +25,7 @@ export function usePartnerQuery(id, { enabled = true } = {}) {
     queryKey: queryKeys.partners.detail(id),
     queryFn: () => sitApi.partners.get(id),
     enabled: enabled && Boolean(id),
+    meta: { silent: true },
   });
 }
 
@@ -56,6 +58,7 @@ export function useSessionsQuery(params = { page: 0, size: 50 }) {
   return useQuery({
     queryKey: queryKeys.sessions.list(params),
     queryFn: () => sitApi.sessions.list(params),
+    meta: { silent: true },
   });
 }
 
@@ -64,6 +67,7 @@ export function useSessionWorkspaceQuery(sessionId, { enabled = true } = {}) {
     queryKey: queryKeys.sessions.workspace(sessionId),
     queryFn: () => sitApi.sessions.workspace(sessionId),
     enabled: enabled && Boolean(sessionId),
+    meta: { silent: true },
   });
 }
 
@@ -72,6 +76,7 @@ export function useSessionQuery(sessionId, { enabled = true } = {}) {
     queryKey: queryKeys.sessions.detail(sessionId),
     queryFn: () => sitApi.sessions.get(sessionId),
     enabled: enabled && Boolean(sessionId),
+    meta: { silent: true },
   });
 }
 
@@ -117,6 +122,7 @@ export function useTestHistoryQuery(params = {}, { enabled = true } = {}) {
     queryKey: queryKeys.tests.history(params),
     queryFn: () => sitApi.tests.history(params),
     enabled,
+    meta: { silent: true },
   });
 }
 
@@ -125,6 +131,7 @@ export function useTestRunQuery(id) {
     queryKey: queryKeys.tests.detail(id),
     queryFn: () => sitApi.tests.get(id),
     enabled: Boolean(id),
+    meta: { silent: true },
   });
 }
 

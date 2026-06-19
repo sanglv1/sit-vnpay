@@ -424,6 +424,9 @@ body.aside-minimize .sit-wrapper { margin-left: 70px; }
     font-size: 22px;
     animation: sit-spin 0.9s linear infinite;
 }
+.sit-list-loading--compact {
+    padding: 24px 16px;
+}
 .sit-list-table-wrap {
     border: 1px solid var(--vnpay-border);
     border-radius: 10px;

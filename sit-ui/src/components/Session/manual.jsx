@@ -55,9 +55,9 @@ const SessionManual = () => {
   const [successPreview, setSuccessPreview] = useState(null);
   const [failedPreview, setFailedPreview] = useState(null);
   const { register, handleSubmit, reset, setValue } = useForm();
-  const { data: session, isLoading: sessionLoading } = useSessionQuery(sessionId);
+  const { data: session } = useSessionQuery(sessionId);
   const { data: acceptance, isFetched: acceptanceLoaded } = useManualAcceptanceQuery(sessionId, {
-    enabled: Boolean(session),
+    enabled: Boolean(sessionId),
   });
   const saveAcceptance = useSaveManualAcceptanceMutation(sessionId);
 
@@ -125,18 +125,19 @@ const SessionManual = () => {
     }
   };
 
-  if (sessionLoading) {
+  if (!session) {
     return (
-      <div className="card-body">
-        <div className="sit-list-loading">
-          <i className="ri-loader-4-line" aria-hidden="true" />
-          <span>{t('common.loading')}</span>
+      <>
+        <AcceptanceTabs />
+        <div className="card-body">
+          <div className="sit-list-loading sit-list-loading--compact">
+            <i className="ri-loader-4-line" aria-hidden="true" />
+            <span>{t('common.loading')}</span>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
-
-  if (!session) return null;
 
   return (
     <>
