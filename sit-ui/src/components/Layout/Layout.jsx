@@ -5,11 +5,13 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import CreditSection from './CreditSection';
 import QueryLoadingBridge from '../Shared/QueryLoadingBridge';
+import { useI18n } from '../../i18n/useI18n';
 import { appActions } from '../../stores';
 
 const Layout = () => {
   const app = useSelector((state) => state.app);
   const dispatch = useDispatch();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (app.flashMessage) {
@@ -34,7 +36,7 @@ const Layout = () => {
           <CreditSection />
         </div>
       </div>
-      {app.loading && <div className="loading-overlay">Đang xử lý...</div>}
+      {app.loading && <div className="loading-overlay">{t('common.processing')}</div>}
     </>
   );
 };

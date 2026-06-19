@@ -310,6 +310,16 @@ const UserList = () => {
               <div className="sit-list-empty">
                 <i className="ri-group-line" aria-hidden="true" />
                 <p>{hasSearch ? t('common.searchEmpty') : t('users.empty')}</p>
+                {!hasSearch && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm sit-list-empty-cta"
+                    onClick={openCreate}
+                  >
+                    <i className="ri-user-add-line" aria-hidden="true" />
+                    {t('users.emptyLink')}
+                  </button>
+                )}
               </div>
             )}
           </div>

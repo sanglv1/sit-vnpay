@@ -15,24 +15,24 @@ import {
 import { appActions } from '../../stores';
 import { useI18n } from '../../i18n/useI18n';
 
-const IPN_LOGIC = [
-  { step: 1, check: 'Kiểm tra chữ ký', param: 'vnp_SecureHash', rsp: '97' },
-  { step: 2, check: 'Kiểm tra đơn hàng', param: 'vnp_TxnRef', rsp: '01' },
-  { step: 3, check: 'Kiểm tra số tiền', param: 'vnp_Amount', rsp: '04' },
-  { step: 4, check: 'Kiểm tra trạng thái đơn', param: 'status', rsp: '02' },
-  { step: 5, check: 'Kiểm tra kết quả giao dịch', param: 'vnp_ResponseCode / vnp_TransactionStatus', rsp: '00' },
-];
-
-const RSP_CODES = [
-  ['00', 'Thành công / Đã xác nhận'],
-  ['01', 'Không tìm thấy đơn'],
-  ['02', 'GD đã cập nhật'],
-  ['04', 'Số tiền không khớp'],
-  ['97', 'Sai chữ ký'],
-  ['99', 'Lỗi khác (nghiệm thu thủ công)'],
-];
-
 const SUCCESS_ORDER_CASES = new Set(['WRONG_AMOUNT', 'SUCCESS']);
+
+const buildIpnLogic = (t) => [
+  { step: 1, check: t('sessions.ipnLogicStep1'), param: 'vnp_SecureHash', rsp: '97' },
+  { step: 2, check: t('sessions.ipnLogicStep2'), param: 'vnp_TxnRef', rsp: '01' },
+  { step: 3, check: t('sessions.ipnLogicStep3'), param: 'vnp_Amount', rsp: '04' },
+  { step: 4, check: t('sessions.ipnLogicStep4'), param: 'status', rsp: '02' },
+  { step: 5, check: t('sessions.ipnLogicStep5'), param: 'vnp_ResponseCode / vnp_TransactionStatus', rsp: '00' },
+];
+
+const buildRspCodes = (t) => [
+  ['00', t('sessions.rspCode00')],
+  ['01', t('sessions.rspCode01')],
+  ['02', t('sessions.rspCode02')],
+  ['04', t('sessions.rspCode04')],
+  ['97', t('sessions.rspCode97')],
+  ['99', t('sessions.rspCode99')],
+];
 
 /** Chọn txnRef/amount theo case — mỗi kịch bản IPN dùng đơn riêng khi cần. */
 const resolveOrderForCase = (caseValue, values) => {
@@ -66,35 +66,35 @@ const resolveOrderForCase = (caseValue, values) => {
   return { txnRef: '', amountVnd: pendingAmountVnd };
 };
 
-const txnRefsMustDiffer = (successTxnRef, failedTxnRef) => {
+const txnRefsMustDiffer = (successTxnRef, failedTxnRef, t) => {
   if (!successTxnRef?.trim() || !failedTxnRef?.trim()) return null;
   if (successTxnRef.trim().toLowerCase() === failedTxnRef.trim().toLowerCase()) {
-    return 'txnRef giao dịch 1 và giao dịch 2 phải khác nhau';
+    return t('sessions.errTxnRefsDiffer');
   }
   return null;
 };
 
-const validateOrderForCase = (caseValue, values) => {
+const validateOrderForCase = (caseValue, values, t) => {
   const { txnRef } = resolveOrderForCase(caseValue, values);
   if (SUCCESS_ORDER_CASES.has(caseValue) && !values.pendingTxnRef?.trim()) {
-    return 'Nhập mã giao dịch (giao dịch 1)';
+    return t('sessions.errTxn1Required');
   }
   if (caseValue === 'FAILED' && !values.failedTxnRef?.trim()) {
-    return 'Nhập mã giao dịch (giao dịch 2)';
+    return t('sessions.errTxn2Required');
   }
   if (caseValue === 'ORDER_ALREADY_CONFIRMED') {
     const hasConfirmed = Boolean(values.confirmedTxnRef?.trim());
     const hasSuccessOrder = Boolean(values.pendingTxnRef?.trim());
     if (!hasConfirmed && !hasSuccessOrder) {
-      return 'Chạy Case 5 trước hoặc nhập txnRef đơn đã SUCCESS cho Case 4';
+      return t('sessions.errCase4Prereq');
     }
   }
-  const differError = txnRefsMustDiffer(values.pendingTxnRef, values.failedTxnRef);
+  const differError = txnRefsMustDiffer(values.pendingTxnRef, values.failedTxnRef, t);
   if (differError && (caseValue === 'FAILED' || caseValue === 'SUCCESS')) {
     return differError;
   }
   if (!txnRef) {
-    return 'Nhập mã giao dịch (txnRef)';
+    return t('sessions.errTxnRefRequired');
   }
   return null;
 };
@@ -118,6 +118,9 @@ const SessionAuto = () => {
   const { register, handleSubmit, getValues, reset, setValue } = useForm();
   const initializedSessionId = useRef(null);
   const formReadyRef = useRef(false);
+
+  const ipnLogic = useMemo(() => buildIpnLogic(t), [t]);
+  const rspCodes = useMemo(() => buildRspCodes(t), [t]);
 
   const { data: workspace, isLoading: workspaceLoading } = useSessionWorkspaceQuery(sessionId);
   const session = workspace?.session;
@@ -196,7 +199,7 @@ const SessionAuto = () => {
 
   const runSingleCase = async (caseValue) => {
     const values = getValues();
-    const validationError = validateOrderForCase(caseValue, values);
+    const validationError = validateOrderForCase(caseValue, values, t);
     if (validationError) {
       dispatch(appActions.flash(validationError, 'danger'));
       return;
@@ -217,13 +220,10 @@ const SessionAuto = () => {
         && result.actualRspCode === '02'
         && (caseValue === 'SUCCESS' || caseValue === 'FAILED');
       if (orderAlreadyProcessed) {
-        dispatch(appActions.flash(
-          'Merchant trả RspCode 02 — đơn đã xử lý trước đó (đúng khi gọi lại IPN). Kết quả nghiệm thu giữ bản PASS trước đó.',
-          'warning',
-        ));
+        dispatch(appActions.flash(t('sessions.rsp02Warning'), 'warning'));
       } else {
         dispatch(appActions.flash(
-          result.passed ? 'Kiểm thử PASS' : 'Kiểm thử FAIL',
+          result.passed ? t('sessions.testPass') : t('sessions.testFail'),
           result.passed ? 'success' : 'danger',
         ));
       }
@@ -241,20 +241,20 @@ const SessionAuto = () => {
   const onRunIpnSuite = async () => {
     const values = getValues();
     if (!values.pendingTxnRef?.trim()) {
-      dispatch(appActions.flash('Nhập mã giao dịch (giao dịch 1) để chạy suite', 'danger'));
+      dispatch(appActions.flash(t('sessions.errSuiteTxn1'), 'danger'));
       return;
     }
     if (!values.failedTxnRef?.trim()) {
-      dispatch(appActions.flash('Nhập mã giao dịch (giao dịch 2) để chạy suite', 'danger'));
+      dispatch(appActions.flash(t('sessions.errSuiteTxn2'), 'danger'));
       return;
     }
-    const differError = txnRefsMustDiffer(values.pendingTxnRef, values.failedTxnRef);
+    const differError = txnRefsMustDiffer(values.pendingTxnRef, values.failedTxnRef, t);
     if (differError) {
       dispatch(appActions.flash(differError, 'danger'));
       return;
     }
     if (!values.pendingAmountVnd || Number(values.pendingAmountVnd) < 1) {
-      dispatch(appActions.flash('Nhập số tiền (giao dịch 1) để chạy suite', 'danger'));
+      dispatch(appActions.flash(t('sessions.errSuiteAmount'), 'danger'));
       return;
     }
     try {
@@ -272,7 +272,9 @@ const SessionAuto = () => {
         config: { timeout: 180000 },
       });
       dispatch(appActions.flash(
-        result.allPassed ? 'Tất cả case IPN đã PASS' : `${result.passedSteps}/${result.totalSteps} case PASS`,
+        result.allPassed
+          ? t('sessions.suiteAllPass')
+          : t('sessions.suitePartialPass', { passed: result.passedSteps, total: result.totalSteps }),
         result.allPassed ? 'success' : 'danger',
       ));
       navigate(`/sessions/${sessionId}/suite-result`);
@@ -331,7 +333,7 @@ const SessionAuto = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {IPN_LOGIC.map((r) => (
+                  {ipnLogic.map((r) => (
                     <tr key={r.step}>
                       <td className="ipn-col-step">{r.step}</td>
                       <td>{r.check}</td>
@@ -342,29 +344,11 @@ const SessionAuto = () => {
                 </tbody>
               </table>
             </div>
-            <p className="ipn-ref-note">
-              <strong>Bước 5:</strong>
-              {' '}
-              nếu
-              {' '}
-              <code>vnp_ResponseCode</code>
-              {' '}
-              và
-              {' '}
-              <code>vnp_TransactionStatus</code>
-              {' '}
-              đều
-              {' '}
-              <code>00</code>
-              {' '}
-              → cập nhật SUCCESS, ngược lại FAIL {'->'} phản hồi RspCode 00 lại VNPAY
-              {' '}
-              {/* <code>00</code> */}
-              {' '}
-              khi đã nhận IPN.
+            <p className="ipn-ref-note sit-page-subtitle mb-2">
+              {t('sessions.ipnStep5Note')}
             </p>
             <div className="rsp-code-legend">
-              {RSP_CODES.map(([code, label]) => (
+              {rspCodes.map(([code, label]) => (
                 <span key={code} className="rsp-code-item">
                   <strong>{code}</strong>
                   {' '}
@@ -379,14 +363,7 @@ const SessionAuto = () => {
 
         {hasUnexpectedOrderNotFound && (
           <div className="alert alert-danger mb-3" style={{ fontSize: 13 }}>
-            Nhiều case đang nhận
-            {' '}
-            <strong>RspCode 01</strong>
-            {' '}
-            (không tìm thấy đơn). Kiểm tra lại
-            {' '}
-            <code>txnRef</code>
-            /số tiền đã nhập — đơn phải được tạo trên merchant và dừng ở OTP (chưa thanh toán xong).
+            {t('sessions.unexpectedOrderNotFound')}
           </div>
         )}
 
@@ -398,41 +375,41 @@ const SessionAuto = () => {
           <input type="hidden" {...register('confirmedAmountVnd')} />
 
           <div className="order-input-group mb-3">
-            <h4 className="order-input-title">Thông tin giao dịch</h4>
-            <p className="order-input-desc">
-              Tạo 2 giao dịch đến màn hình OTP dừng lại và điền txnRef, amount vào bảng dưới {'->'} bấm <strong>Tiến hành kiểm tra tự động</strong>.
+            <h4 className="order-input-title">{t('sessions.orderTitle')}</h4>
+            <p className="order-input-desc sit-page-subtitle">
+              {t('sessions.orderDesc')}
             </p>
             <div className="order-prep-table">
               <div className="order-prep-head">
                 <span />
-                <span>Mã giao dịch (vnp_TxnRef)</span>
-                <span>Số tiền (vnp_Amount)</span>
+                <span>{t('sessions.orderTxnRefCol')}</span>
+                <span>{t('sessions.orderAmountCol')}</span>
               </div>
               <div className="order-prep-row">
-                <span className="order-prep-label">Giao dịch 1</span>
+                <span className="order-prep-label">{t('sessions.order1')}</span>
                 <input
                   className="form-control form-control-sm"
-                  placeholder="TxnRef giao dịch 1"
+                  placeholder={t('sessions.orderTxnRef1Placeholder')}
                   {...register('pendingTxnRef')}
                 />
                 <input
                   type="number"
                   className="form-control form-control-sm"
-                  placeholder="amount giao dịch 1"
+                  placeholder={t('sessions.orderAmount1Placeholder')}
                   {...register('pendingAmountVnd', { required: true, min: 1 })}
                 />
               </div>
               <div className="order-prep-row">
-                <span className="order-prep-label">Giao dịch 2</span>
+                <span className="order-prep-label">{t('sessions.order2')}</span>
                 <input
                   className="form-control form-control-sm"
-                  placeholder="TxnRef giao dịch 2"
+                  placeholder={t('sessions.orderTxnRef2Placeholder')}
                   {...register('failedTxnRef')}
                 />
                 <input
                   type="number"
                   className="form-control form-control-sm"
-                  placeholder="amount giao dịch 2"
+                  placeholder={t('sessions.orderAmount2Placeholder')}
                   {...register('failedAmountVnd', { min: 1 })}
                 />
               </div>
@@ -441,7 +418,9 @@ const SessionAuto = () => {
 
           <div className="form-footer">
             <button type="button" className="btn btn-primary" onClick={onRunIpnSuite}>
-              <i className="ri-list-check-2" /> Tiến hành kiểm tra tự động
+              <i className="ri-list-check-2" />
+              {' '}
+              {t('sessions.runSuite')}
             </button>
           </div>
         </form>

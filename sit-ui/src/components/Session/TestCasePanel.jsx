@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
+import { useI18n } from '../../i18n/useI18n';
 
-const CASE_DESCRIPTIONS = {
-  INVALID_HASH: 'Thay đổi / giả mạo vnp_SecureHash — Merchant trả RspCode 97',
-  ORDER_NOT_FOUND: 'Thay đổi / giả mạo txnRef — Merchant không tìm thấy giao dịch, trả RspCode 01',
-  WRONG_AMOUNT: 'Thay đổi / giả mạo số tiền — Merchant trả RspCode 04',
-  SUCCESS: 'Giao dịch thành công — Merchant cập nhật trạng thái và trả RspCode 00',
-  FAILED: 'IPN mang kết quả GD thất bại (ResponseCode ≠ 00) — Merchant ghi nhận FAIL và trả RspCode 00',
-  ORDER_ALREADY_CONFIRMED: 'Gửi lại IPN khi đơn đã xác nhận — Merchant trả RspCode 02',
+const CASE_DESC_KEYS = {
+  INVALID_HASH: 'sessions.caseDescInvalidHash',
+  ORDER_NOT_FOUND: 'sessions.caseDescOrderNotFound',
+  WRONG_AMOUNT: 'sessions.caseDescWrongAmount',
+  SUCCESS: 'sessions.caseDescSuccess',
+  FAILED: 'sessions.caseDescFailed',
+  ORDER_ALREADY_CONFIRMED: 'sessions.caseDescOrderConfirmed',
 };
 
 const INPUT_KEYS_PAY = [
@@ -17,8 +18,6 @@ const INPUT_KEYS_SNAKE = [
 ];
 
 const caseTitle = (label) => label.replace(/\s*\(Case\s+\d+\)\s*$/i, '');
-
-const evaluationLabel = (passed) => (passed ? 'ĐẠT' : 'KHÔNG ĐẠT');
 
 const parseParams = (json) => {
   if (!json) return {};
@@ -48,19 +47,6 @@ const inputKeysForRun = (run) => {
   return usesPascalCase ? INPUT_KEYS_PAY : INPUT_KEYS_SNAKE;
 };
 
-const formatInputBlock = (run) => {
-  const params = parseParams(run.requestParams);
-  const keys = inputKeysForRun(run);
-  return keys
-    .map((key) => `${key}: ${params[key] ?? '—'}`)
-    .join('\n');
-};
-
-const formatOutputBlock = (run) => {
-  const { rspCode, message } = parseOutput(run.responseBody);
-  return `rspCode: "${rspCode}"\nMessage: "${message}" | Đánh giá: ${evaluationLabel(run.passed)}`;
-};
-
 const TestCasePanel = ({
   testCases,
   runsByCase,
@@ -69,6 +55,25 @@ const TestCasePanel = ({
   onRunCase,
   runningCase,
 }) => {
+  const { t } = useI18n();
+
+  const evaluationLabel = (passed) => (
+    passed ? t('common.passedLabel') : t('common.failedLabel')
+  );
+
+  const formatInputBlock = (run) => {
+    const params = parseParams(run.requestParams);
+    const keys = inputKeysForRun(run);
+    return keys
+      .map((key) => `${key}: ${params[key] ?? '—'}`)
+      .join('\n');
+  };
+
+  const formatOutputBlock = (run) => {
+    const { rspCode, message } = parseOutput(run.responseBody);
+    return `rspCode: "${rspCode}"\nMessage: "${message}" | ${t('sessions.tcOutputEval')}: ${evaluationLabel(run.passed)}`;
+  };
+
   const sortedCases = useMemo(
     () => [...testCases].sort((a, b) => (a.checkOrder || 0) - (b.checkOrder || 0)),
     [testCases],
@@ -82,29 +87,30 @@ const TestCasePanel = ({
   return (
     <div className="tc-panel">
       <div className="tc-panel-header">
-        Danh sách kịch bản (Test Cases)
+        {t('sessions.tcListTitle')}
         {' — '}
         <span className={autoPassed === autoTotal && autoTotal > 0 ? 'text-success' : ''}>
           {autoPassed}
           /
           {autoTotal}
           {' '}
-          ĐẠT
+          {t('common.passedLabel')}
         </span>
       </div>
 
       <div className="tc-panel-body">
         <div className="tc-list">
           <div className="tc-list-head">
-            <span className="tc-list-head-main">Tình huống</span>
+            <span className="tc-list-head-main">{t('sessions.tcSituation')}</span>
             <span className="tc-list-head-codes">RspCode</span>
-            <span className="tc-list-head-eval">Đánh giá</span>
+            <span className="tc-list-head-eval">{t('sessions.tcEvaluation')}</span>
             <span className="tc-list-head-action" />
           </div>
           {sortedCases.map((tc) => {
             const run = runsByCase[tc.value];
             const isSelected = selectedCase?.value === tc.value;
             const isRunning = runningCase === tc.value;
+            const descKey = CASE_DESC_KEYS[tc.value];
 
             return (
               <div
@@ -123,14 +129,16 @@ const TestCasePanel = ({
                     </span>
                     <span className="tc-item-title">{caseTitle(tc.label)}</span>
                   </div>
-                  <p className="tc-item-desc">{CASE_DESCRIPTIONS[tc.value] || tc.label}</p>
+                  <p className="tc-item-desc">
+                    {descKey ? t(descKey) : tc.label}
+                  </p>
                 </div>
 
                 <div className="tc-item-codes">
-                  <span className="tc-code-box" title="RspCode kỳ vọng">{tc.expectedRspCode}</span>
+                  <span className="tc-code-box" title={t('tests.expectedRsp')}>{tc.expectedRspCode}</span>
                   <span
                     className={`tc-code-box${run ? (run.passed ? ' tc-code-ok' : ' tc-code-bad') : ''}`}
-                    title="RspCode thực tế"
+                    title={t('tests.actualRsp')}
                   >
                     {run?.actualRspCode ?? '—'}
                   </span>
@@ -149,7 +157,7 @@ const TestCasePanel = ({
                 <button
                   type="button"
                   className="tc-play-btn"
-                  title="Chạy case này"
+                  title={t('sessions.tcRunCase')}
                   disabled={isRunning}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -169,8 +177,7 @@ const TestCasePanel = ({
               <i className="ri-code-s-slash-line" />
               <div>
                 <div className="tc-debug-title">
-                  Debug Case #
-                  {selectedCase.caseCode}
+                  {t('sessions.tcDebugTitle', { code: selectedCase.caseCode })}
                 </div>
                 <div className="tc-debug-subtitle">{caseTitle(selectedCase.label)}</div>
               </div>
@@ -179,17 +186,17 @@ const TestCasePanel = ({
             {selectedRun ? (
               <>
                 <div className="tc-debug-section">
-                  <div className="tc-debug-label">Kết quả test</div>
+                  <div className="tc-debug-label">{t('sessions.tcTestResult')}</div>
                 </div>
 
                 <div className="tc-debug-section">
-                  <div className="tc-debug-label">Input:</div>
+                  <div className="tc-debug-label">{t('sessions.tcInput')}</div>
                   <pre className="code-block tc-debug-code">{formatInputBlock(selectedRun)}</pre>
                 </div>
 
                 <div className="tc-debug-section">
                   <div className="tc-debug-response-head">
-                    <span className="tc-debug-label mb-0">Output:</span>
+                    <span className="tc-debug-label mb-0">{t('sessions.tcOutput')}</span>
                     <span className={`tc-eval-badge tc-eval-badge-lg${selectedRun.passed ? ' dat' : ' khong-dat'}`}>
                       {evaluationLabel(selectedRun.passed)}
                     </span>
@@ -198,8 +205,8 @@ const TestCasePanel = ({
                 </div>
 
                 <div className="tc-debug-section">
-                  <div className="tc-debug-label">Request gửi tới IPN URL</div>
-                  <pre className="code-block tc-debug-code">{selectedRun.requestParams || '(empty)'}</pre>
+                  <div className="tc-debug-label">{t('sessions.tcRequest')}</div>
+                  <pre className="code-block tc-debug-code">{selectedRun.requestParams || t('tests.emptyResponse')}</pre>
                 </div>
 
                 {selectedRun.errorMessage && (
@@ -209,7 +216,7 @@ const TestCasePanel = ({
             ) : (
               <div className="tc-debug-empty">
                 <i className="ri-play-circle-line" />
-                <p>Chưa có kết quả cho case này. Bấm nút play hoặc chạy kiểm tra tự động.</p>
+                <p>{t('sessions.tcEmpty')}</p>
               </div>
             )}
           </div>

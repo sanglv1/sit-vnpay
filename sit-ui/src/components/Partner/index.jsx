@@ -198,17 +198,13 @@ const PartnerList = () => {
             ) : (
               <div className="sit-list-empty">
                 <i className="ri-terminal-box-line" aria-hidden="true" />
-                <p>
-                  {hasSearch
-                    ? t('common.searchEmpty')
-                    : (
-                      <>
-                        {t('partners.empty')}
-                        {' '}
-                        <Link to="/partners/create">{t('partners.emptyLink')}</Link>
-                      </>
-                    )}
-                </p>
+                <p>{hasSearch ? t('common.searchEmpty') : t('partners.empty')}</p>
+                {!hasSearch && (
+                  <Link to="/partners/create" className="btn btn-primary btn-sm sit-list-empty-cta">
+                    <i className="ri-add-line" aria-hidden="true" />
+                    {t('partners.emptyLink')}
+                  </Link>
+                )}
               </div>
             )}
           </div>

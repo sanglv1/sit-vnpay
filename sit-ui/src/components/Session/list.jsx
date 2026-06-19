@@ -254,14 +254,14 @@ const SessionList = () => {
                 <p>
                   {hasSearch || completion !== 'ALL'
                     ? t('common.searchEmpty')
-                    : (
-                      <>
-                        {t('sessions.empty')}
-                        {' '}
-                        <Link to="/sessions/new">{t('sessions.emptyLink')}</Link>
-                      </>
-                    )}
+                    : t('sessions.empty')}
                 </p>
+                {!hasSearch && completion === 'ALL' && (
+                  <Link to="/sessions/new" className="btn btn-primary btn-sm sit-list-empty-cta">
+                    <i className="ri-add-line" aria-hidden="true" />
+                    {t('sessions.emptyLink')}
+                  </Link>
+                )}
               </div>
             )}
             {totalPages > 1 && (

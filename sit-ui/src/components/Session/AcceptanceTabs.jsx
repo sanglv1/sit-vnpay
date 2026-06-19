@@ -1,7 +1,9 @@
 import { NavLink, useParams } from 'react-router-dom';
+import { useI18n } from '../../i18n/useI18n';
 
 const AcceptanceTabs = () => {
   const { sessionId } = useParams();
+  const { t } = useI18n();
 
   return (
     <div className="acceptance-tabs">
@@ -9,13 +11,13 @@ const AcceptanceTabs = () => {
         to={`/sessions/${sessionId}/auto`}
         className={({ isActive }) => `acceptance-tab${isActive ? ' active' : ''}`}
       >
-        Nghiệm thu tự động
+        {t('sessions.acceptanceTabAuto')}
       </NavLink>
       <NavLink
         to={`/sessions/${sessionId}/manual`}
         className={({ isActive }) => `acceptance-tab${isActive ? ' active' : ''}`}
       >
-        Nghiệm thu thủ công
+        {t('sessions.acceptanceTabManual')}
       </NavLink>
     </div>
   );

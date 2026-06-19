@@ -94,7 +94,7 @@ const SessionManual = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      dispatch(appActions.flash('Ảnh tối đa 2MB', 'danger'));
+      dispatch(appActions.flash(t('sessions.manualImageMaxSize'), 'danger'));
       return;
     }
     const dataUrl = await readImageAsDataUrl(file);
@@ -119,7 +119,7 @@ const SessionManual = () => {
       };
       const saved = await saveAcceptance.mutateAsync(payload);
       setValue('id', saved.id);
-      dispatch(appActions.flash('Lưu kết quả QC thành công'));
+      dispatch(appActions.flash(t('sessions.manualSaveSuccess')));
     } catch {
       // mutation cache handles API errors
     }
@@ -164,54 +164,70 @@ const SessionManual = () => {
           <div className="row manual-columns">
             <div className="col-lg-6">
               <div className="manual-section">
-                <h4 className="manual-section-title">1. Return URL (Website/app của merchant)</h4>
+                <h4 className="manual-section-title">{t('sessions.manualReturnSection')}</h4>
                 <div className="manual-subsection">
-                  <div className="manual-subtitle">A. TxnRef GD Thành công</div>
-                  <input className="form-control mb-2" placeholder="Mã giao dịch thành công" {...register('returnSuccessTxnRef')} />
-                  <ImageUpload label="Ảnh Return URL Thành công" preview={successPreview} onChange={(e) => onImageChange(e, 'returnSuccessImage', setSuccessPreview)} />
+                  <div className="manual-subtitle">{t('sessions.manualSuccessTxn')}</div>
+                  <input
+                    className="form-control mb-2"
+                    placeholder={t('sessions.manualSuccessTxnPlaceholder')}
+                    {...register('returnSuccessTxnRef')}
+                  />
+                  <ImageUpload
+                    label={t('sessions.manualSuccessImage')}
+                    preview={successPreview}
+                    onChange={(e) => onImageChange(e, 'returnSuccessImage', setSuccessPreview)}
+                  />
                   <input type="hidden" {...register('returnSuccessImage')} />
                 </div>
                 <div className="manual-subsection">
-                  <div className="manual-subtitle">B. TxnRef GD Thất bại</div>
-                  <input className="form-control mb-2" placeholder="Mã giao dịch thất bại" {...register('returnFailedTxnRef')} />
-                  <ImageUpload label="Ảnh Return URL Thất bại" preview={failedPreview} onChange={(e) => onImageChange(e, 'returnFailedImage', setFailedPreview)} />
+                  <div className="manual-subtitle">{t('sessions.manualFailedTxn')}</div>
+                  <input
+                    className="form-control mb-2"
+                    placeholder={t('sessions.manualFailedTxnPlaceholder')}
+                    {...register('returnFailedTxnRef')}
+                  />
+                  <ImageUpload
+                    label={t('sessions.manualFailedImage')}
+                    preview={failedPreview}
+                    onChange={(e) => onImageChange(e, 'returnFailedImage', setFailedPreview)}
+                  />
                   <input type="hidden" {...register('returnFailedImage')} />
                 </div>
               </div>
             </div>
             <div className="col-lg-6">
               <div className="manual-section">
-                <h4 className="manual-section-title">2. Kiểm tra nghiệp vụ hệ thống</h4>
+                <h4 className="manual-section-title">{t('sessions.manualSystemSection')}</h4>
                 <RadioPair
                   name="exceptionHandled"
-                  label="A. Xác nhận xử lý lỗi ngoại lệ ở đầu IPN URL (case ex → RspCode 99)"
-                  description="Merchant xử lý exception tại IPN URL. Lỗi không được xử lý phải trả RspCode = 99 cho VNPAY."
+                  label={t('sessions.manualExceptionLabel')}
+                  description={t('sessions.manualExceptionDesc')}
                   register={register}
-                  trueLabel="Đã xử lý"
-                  falseLabel="Chưa xử lý"
+                  trueLabel={t('common.handled')}
+                  falseLabel={t('common.notHandled')}
                 />
                 <RadioPair
                   name="whitelistIpPassed"
-                  label="B. Trạng thái Whitelist IP"
-                  description="Merchant đã whitelist dải IP của VNPAY cho API IPN."
+                  label={t('sessions.manualWhitelistLabel')}
+                  description={t('sessions.manualWhitelistDesc')}
                   register={register}
-                  trueLabel="Đạt"
-                  falseLabel="Không đạt"
+                  trueLabel={t('common.yesDone')}
+                  falseLabel={t('common.noFailed')}
                 />
                 <RadioPair
                   name="logStoragePassed"
-                  label="C. Trạng thái Lưu Log"
-                  description="Merchant lưu log toàn bộ request từ VNPAY và ngược lại."
+                  label={t('sessions.manualLogLabel')}
+                  description={t('sessions.manualLogDesc')}
                   register={register}
-                  trueLabel="Đạt"
-                  falseLabel="Không đạt"
+                  trueLabel={t('common.yesDone')}
+                  falseLabel={t('common.noFailed')}
                 />
               </div>
             </div>
           </div>
           <div className="row">
             <div className="col-12">
-              <label className="form-label">Ghi chú QC</label>
+              <label className="form-label">{t('sessions.manualQcNote')}</label>
               <textarea className="form-control" rows={2} {...register('note')} />
             </div>
           </div>
