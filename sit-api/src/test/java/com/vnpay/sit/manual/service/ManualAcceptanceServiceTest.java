@@ -80,6 +80,35 @@ class ManualAcceptanceServiceTest {
   }
 
   @Test
+  void save_shouldPreserveExistingImagesWhenPayloadOmitsThem() {
+    PartnerConfig partner = partner(1L, "Merchant A");
+    TestSession session = session(5L, 1L);
+    ManualAcceptance existing = new ManualAcceptance();
+    existing.setId(30L);
+    existing.setSessionId(5L);
+    existing.setReturnSuccessImage("data:image/png;base64,EXISTING_OK");
+    existing.setReturnFailedImage("data:image/png;base64,EXISTING_FAIL");
+
+    ManualAcceptanceForm form = form(1L, 5L);
+    form.setId(30L);
+    form.setReturnSuccessTxnRef("OK_REF");
+
+    SitUserPrincipal principal = principal("qc@merchant.com", UserRole.MERCHANT_QC);
+    when(partnerService.requireAccessible(1L, principal)).thenReturn(partner);
+    when(accessControlService.requireSession(5L)).thenReturn(session);
+    doNothing().when(accessControlService).requireSessionAccess(session, principal);
+    when(repository.findById(30L)).thenReturn(Optional.of(existing));
+    doNothing().when(accessControlService).requireSessionAccess(5L, principal);
+    when(repository.save(any(ManualAcceptance.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ManualAcceptance saved = manualAcceptanceService.save(form, principal);
+
+    assertThat(saved.getReturnSuccessImage()).isEqualTo("data:image/png;base64,EXISTING_OK");
+    assertThat(saved.getReturnFailedImage()).isEqualTo("data:image/png;base64,EXISTING_FAIL");
+  }
+
+  @Test
   void save_shouldRejectMismatchedPartnerAndSession() {
     PartnerConfig partner = partner(1L, "Merchant A");
     TestSession session = session(5L, 99L);

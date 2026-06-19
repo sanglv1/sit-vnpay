@@ -102,6 +102,13 @@ Lần đầu chạy API (DB chưa có user), hệ thống tự tạo admin theo 
 
 Mẫu cấu hình: `sit-api/.env.example`. **Không commit** file `.env` thật hoặc secret production.
 
+**Ảnh QC trong biên bản Word (deploy VPS/Nginx):** Tab QC thủ công gửi ảnh dạng base64 trong JSON (~3MB/ảnh). Cần cấu hình:
+
+- Nginx: `client_max_body_size 15m;` trong `server` block (mặc định chỉ `1m` → ảnh không lưu được, xuất biên bản thiếu ảnh).
+- API Docker: image JRE cần `fontconfig` để nhúng ảnh vào DOCX (đã cấu hình trong `sit-api/Dockerfile`).
+
+Sau khi sửa Nginx, **upload lại ảnh** trên tab QC thủ công → Lưu → Xuất biên bản.
+
 ### Profile & database
 
 | Profile | Database | Schema |

@@ -52,7 +52,7 @@ final class DocxImageInserter {
             paragraph.setAlignment(ParagraphAlignment.CENTER);
             return true;
         } catch (Exception ex) {
-            log.warn("Cannot embed return URL image into minutes document", ex);
+            log.error("Cannot embed return URL image into minutes document: {}", ex.getMessage());
             return false;
         }
     }

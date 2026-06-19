@@ -10,6 +10,7 @@ import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.session.entity.TestSession;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Optional;
 
@@ -58,9 +59,9 @@ public class ManualAcceptanceService {
         entity.setSessionId(session != null ? session.getId() : null);
         entity.setPartnerName(partner.getName());
         entity.setReturnSuccessTxnRef(trim(form.getReturnSuccessTxnRef()));
-        entity.setReturnSuccessImage(form.getReturnSuccessImage());
+        entity.setReturnSuccessImage(resolveImage(form.getReturnSuccessImage(), entity.getReturnSuccessImage()));
         entity.setReturnFailedTxnRef(trim(form.getReturnFailedTxnRef()));
-        entity.setReturnFailedImage(form.getReturnFailedImage());
+        entity.setReturnFailedImage(resolveImage(form.getReturnFailedImage(), entity.getReturnFailedImage()));
         entity.setExceptionHandled(form.getExceptionHandled());
         entity.setWhitelistIpPassed(form.getWhitelistIpPassed());
         entity.setLogStoragePassed(form.getLogStoragePassed());
@@ -111,5 +112,10 @@ public class ManualAcceptanceService {
 
     private static String trim(String value) {
         return value != null ? value.trim() : null;
+    }
+
+    /** Giữ ảnh cũ khi client không gửi lại (tránh mất ảnh khi payload bị cắt). */
+    private static String resolveImage(String incoming, String existing) {
+        return StringUtils.hasText(incoming) ? incoming.trim() : existing;
     }
 }

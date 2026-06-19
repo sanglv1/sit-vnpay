@@ -5,9 +5,12 @@ COPY config ./config
 COPY src ./src
 RUN mvn -B -DskipTests -Dcheckstyle.skip=true package
 
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 WORKDIR /app
-RUN addgroup -S sit && adduser -S sit -G sit
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r sit && useradd -r -g sit sit
 COPY --from=build /app/target/sit-api-*.jar /app/app.jar
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh && chown -R sit:sit /app
