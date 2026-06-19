@@ -6,7 +6,7 @@ Công cụ nội bộ mô phỏng VNPay gửi callback **Return URL** và **IPN 
 
 ```
 sit-vnpay/
-├── sit-api/     Spring Boot REST API (port 8001) — tác giả: sanglv
+├── sit-api/     Spring Boot REST API (port 8001)
 └── sit-ui/      React SPA theo pattern vsm-ui (port 8000)
 ```
 
@@ -16,6 +16,15 @@ sit-vnpay/
 - Node.js 18+, npm
 
 ## Chạy development
+
+**Terminal 0 — PostgreSQL (bắt buộc cho profile `dev` và `prod`):**
+
+```bash
+cd sit-api
+docker compose up -d
+```
+
+PostgreSQL local: `localhost:5434`, database `sit_vnpay_db`, user `postgres` / password `sit123456`.
 
 **Terminal 1 — API:**
 
@@ -95,32 +104,32 @@ Mẫu cấu hình: `sit-api/.env.example`. **Không commit** file `.env` thật 
 
 ### Profile & database
 
-| Profile | Database | H2 Console | Schema |
-|---------|----------|------------|--------|
-| `dev` (mặc định) | H2 file (`./data/sit_vnpay`) | Bật | Flyway migrate + Hibernate `validate` |
-| `prod` | PostgreSQL (bắt buộc) | Tắt | Flyway migrate + Hibernate `validate` |
+| Profile | Database | Schema |
+|---------|----------|--------|
+| `dev` (mặc định) | PostgreSQL (`localhost:5434/sit_vnpay_db`) | Flyway migrate + Hibernate `validate` |
+| `test` (JUnit) | H2 in-memory | Flyway migrate + Hibernate `validate` |
+| `prod` | PostgreSQL (bắt buộc, qua env) | Flyway migrate + Hibernate `validate` |
 
 Migration SQL: `sit-api/src/main/resources/db/migration/`. Thêm migration mới khi đổi schema (vd. `V2__add_column.sql`).
 
-**Nâng cấp từ bản cũ (ddl-auto):** nếu khởi động lỗi validate schema, xóa thư mục `sit-api/data/` (dev) hoặc chạy Flyway baseline thủ công trên DB production đã có sẵn bảng.
+**Nâng cấp từ bản cũ:** nếu khởi động lỗi validate schema, reset volume PostgreSQL local (`docker compose down -v` rồi `docker compose up -d`) hoặc chạy Flyway baseline thủ công trên DB production đã có sẵn bảng.
 
-Ví dụ chạy local (PowerShell):
+Ví dụ chạy local với profile `dev` (PowerShell):
 
 ```powershell
+cd sit-api
+docker compose up -d
 $env:SIT_JWT_SECRET = "dev-only-secret-min-32-characters-long"
 $env:SIT_ADMIN_EMAIL = "admin@vnpay.vn"
 $env:SIT_ADMIN_PASSWORD = "YourSecurePassword"
+# Tùy chọn — mặc định dev đã trỏ PostgreSQL local
+$env:DB_URL = "jdbc:postgresql://localhost:5434/sit_vnpay_db"
+$env:DB_USERNAME = "postgres"
+$env:DB_PASSWORD = "sit123456"
 mvn spring-boot:run
 ```
 
-## PostgreSQL (production)
-
-```bash
-cd sit-api
-docker compose up -d
-```
-
-Chạy API với profile `prod`:
+Chạy API với profile `prod` (cùng PostgreSQL local hoặc server riêng):
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE = "prod"
@@ -290,6 +299,21 @@ Bấm **Lưu kết quả QC** để lưu theo phiên.
 | `/sessions` | Tiến độ `X/6 ĐẠT` theo phiên |
 
 **Xuất biên bản:** Trong phiên kiểm thử, bấm **Xuất biên bản** để tải file Word theo mẫu VNPay (PAY / TOKEN / RECURRING / INSTALMENT). Tên file: `VNPAYGW-{tmnCode}-SIT.docx`. Hệ thống tự điền thông tin merchant, kết quả IPN tự động và dữ liệu nghiệm thu thủ công.
+
+### Mẫu biên bản Word (DOCX)
+
+Bốn file template nằm trong repo tại `sit-api/src/main/resources/templates/minutes/`:
+
+| File template | Luồng thanh toán |
+|---------------|------------------|
+| `VNPAYGW-Pay-SIT-VN.docx` | PAY |
+| `VNPAYGW-Token-SIT-VN.docx` | TOKEN |
+| `VNPAYGW-Recurring-SIT-VN.docx` | RECURRING |
+| `VNPAYGW-Installment-SIT-VN.docx` | INSTALMENT |
+
+API chọn template theo `PaymentFlow` của Terminal; file tải về đặt tên `VNPAYGW-{tmnCode}-SIT.docx`.
+
+**Nếu thiếu template sau khi clone:** lấy lại từ git (`git checkout HEAD -- sit-api/src/main/resources/templates/minutes/`) hoặc copy từ bản phát hành nội bộ VNPay. Khi VNPay cập nhật mẫu biên bản chính thức, thay file tương ứng trong thư mục trên — **giữ nguyên tên file** và các nhãn đoạn văn mà code filler đọc (vd. `Return URL`, `IPN URL`, `Input:`, `Output:`, `Giao dịch thành công`, …).
 
 ### Checklist nhanh
 
