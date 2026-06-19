@@ -147,6 +147,7 @@ class TestRunApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].testCaseLabel").exists())
                 .andExpect(jsonPath("$.data.content[0].txnRef").value("TXN001"))
                 .andExpect(jsonPath("$.data.content[0].targetUrl").exists())
+                .andExpect(jsonPath("$.data.content[0].requestUrl").exists())
                 .andExpect(jsonPath("$.data.content[0].requestParams").exists())
                 .andExpect(jsonPath("$.data.content[0].passed").value(true))
                 .andExpect(jsonPath("$.data.content[0].sessionCreatedByEmail").value("merchant@shop.com"))
@@ -163,6 +164,7 @@ class TestRunApiControllerIntegrationTest {
         run.setTestCase(TestCaseType.SUCCESS);
         run.setTxnRef("TXN001");
         run.setTargetUrl("http://merchant.test/ipn");
+        run.setRequestUrl("GET http://merchant.test/ipn?vnp_TxnRef=TXN001");
         run.setRequestParams("{\"vnp_TxnRef\":\"TXN001\"}");
         run.setHttpStatus(200);
         run.setResponseBody("{\"RspCode\":\"00\"}");

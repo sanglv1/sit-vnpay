@@ -112,6 +112,7 @@ class TestExecutionServiceTest {
         assertThat(result.getActualRspCode()).isEqualTo("00");
         assertThat(result.getCallbackType()).isEqualTo(CallbackType.IPN);
         assertThat(result.getRequestParams()).contains("vnp_SecureHash");
+        assertThat(result.getRequestUrl()).isEqualTo("http://merchant.test/callback");
     }
 
     @Test

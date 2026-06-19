@@ -21,6 +21,7 @@ public class TestRunResponse {
     private final String testCaseLabel;
     private final String txnRef;
     private final String targetUrl;
+    private final String requestUrl;
     private final String requestParams;
     private final Integer httpStatus;
     private final String responseBody;
@@ -47,6 +48,7 @@ public class TestRunResponse {
                 .testCaseLabel(run.getTestCase().getLabel())
                 .txnRef(run.getTxnRef())
                 .targetUrl(run.getTargetUrl())
+                .requestUrl(run.getRequestUrl())
                 .requestParams(run.getRequestParams())
                 .httpStatus(run.getHttpStatus())
                 .responseBody(run.getResponseBody())

@@ -3,6 +3,7 @@ import Breadcrumbs from '../Shared/Breadcrumbs';
 import { useI18n } from '../../i18n/useI18n';
 import { getFlowLabel } from '../../i18n/flowLabels';
 import { useTestRunQuery } from '../../api/hooks';
+import formatCallbackRequestLog from '../../utils/formatCallbackRequestLog';
 
 const TestDetail = () => {
   const { id } = useParams();
@@ -86,7 +87,9 @@ const TestDetail = () => {
         )}
         <div className="mb-3">
           <strong>{t('tests.requestParams')}</strong>
-          <pre className="code-block">{run.requestParams}</pre>
+          <pre className="code-block tc-debug-code-wrap">
+            {formatCallbackRequestLog(run) || t('tests.emptyResponse')}
+          </pre>
         </div>
         <div>
           <strong>{t('tests.responseBody')}</strong>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useI18n } from '../../i18n/useI18n';
+import formatCallbackRequestLog from '../../utils/formatCallbackRequestLog';
 
 const CASE_DESC_KEYS = {
   INVALID_HASH: 'sessions.caseDescInvalidHash',
@@ -206,7 +207,9 @@ const TestCasePanel = ({
 
                 <div className="tc-debug-section">
                   <div className="tc-debug-label">{t('sessions.tcRequest')}</div>
-                  <pre className="code-block tc-debug-code">{selectedRun.requestParams || t('tests.emptyResponse')}</pre>
+                  <pre className="code-block tc-debug-code tc-debug-code-wrap">
+                    {formatCallbackRequestLog(selectedRun) || t('tests.emptyResponse')}
+                  </pre>
                 </div>
 
                 {selectedRun.errorMessage && (

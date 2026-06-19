@@ -183,6 +183,7 @@ public class TestExecutionService {
         run.setTxnRef(form.getTxnRef().trim());
         run.setTargetUrl(targetUrl);
         run.setRequestParams(toJson(params));
+        run.setRequestUrl(truncate(response.requestUrl(), 8000));
         run.setHttpStatus(response.httpStatus());
         run.setResponseBody(truncate(response.responseBody(), 8000));
         run.setDurationMs(response.durationMs());

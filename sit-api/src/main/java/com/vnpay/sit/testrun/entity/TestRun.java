@@ -49,6 +49,10 @@ public class TestRun {
     @Column(name = "request_params", columnDefinition = "TEXT")
     private String requestParams;
 
+    /** Full HTTP GET URL sent to merchant (IPN / Return URL). */
+    @Column(name = "request_url", columnDefinition = "TEXT")
+    private String requestUrl;
+
     @Column(name = "http_status")
     private Integer httpStatus;
 

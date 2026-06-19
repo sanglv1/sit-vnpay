@@ -78,6 +78,7 @@ export interface TestRunResponse {
   testCaseLabel: string;
   txnRef: string;
   targetUrl: string;
+  requestUrl: string | null;
   requestParams: string;
   httpStatus: number | null;
   responseBody: string | null;

@@ -36,11 +36,9 @@ public class CallbackHttpRunner {
 
     public CallbackResponse execute(String baseUrl, Map<String, String> params, boolean asIpn) {
         long start = System.currentTimeMillis();
+        URI uri = buildRequestUri(baseUrl, params);
+        String requestUrl = uri.toString();
         try {
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
-            params.forEach(builder::queryParam);
-            URI uri = builder.encode(StandardCharsets.UTF_8).build().toUri();
-
             HttpHeaders headers = new HttpHeaders();
             if (asIpn && simulateVnPayIp) {
                 headers.set("X-Forwarded-For", VNPAY_SANDBOX_IP);
@@ -50,7 +48,7 @@ public class CallbackHttpRunner {
             ResponseEntity<String> response = restTemplate.exchange(uri, HttpMethod.GET, entity, String.class);
             long duration = System.currentTimeMillis() - start;
             return new CallbackResponse(
-                    uri.toString(),
+                    requestUrl,
                     response.getStatusCode().value(),
                     response.getBody(),
                     duration,
@@ -58,8 +56,14 @@ public class CallbackHttpRunner {
             );
         } catch (RestClientException ex) {
             long duration = System.currentTimeMillis() - start;
-            return new CallbackResponse(baseUrl, 0, null, duration, ex.getMessage());
+            return new CallbackResponse(requestUrl, 0, null, duration, ex.getMessage());
         }
+    }
+
+    private static URI buildRequestUri(String baseUrl, Map<String, String> params) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+        params.forEach(builder::queryParam);
+        return builder.encode(StandardCharsets.UTF_8).build().toUri();
     }
 
     public record CallbackResponse(

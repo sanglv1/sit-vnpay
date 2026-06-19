@@ -1,0 +1,1 @@
+ALTER TABLE test_run ADD COLUMN IF NOT EXISTS request_url TEXT;
