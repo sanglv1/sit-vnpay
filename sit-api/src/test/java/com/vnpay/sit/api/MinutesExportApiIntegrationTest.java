@@ -273,7 +273,7 @@ class MinutesExportApiIntegrationTest {
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.INVALID_HASH, true, "TOK_OK", "97",
                 snakeCaseParams("TOK_OK", "TMNTOK", null, null),
                 "{\"RspCode\":\"97\",\"Message\":\"Invalid signature\"}");
-        saveManualAcceptance(session, partner, true, false, true);
+        saveManualAcceptance(session, partner, true, false, true, "TOK_RETURN_OK", "TOK_RETURN_FAIL", TINY_PNG_DATA_URL, TINY_PNG_DATA_URL);
 
         byte[] content = exportMinutes(session, "2.1.0");
         String allText = readDocText(content);
@@ -284,12 +284,23 @@ class MinutesExportApiIntegrationTest {
         assertThat(allText).contains("Phiên bản tích hợp: 2.1.0");
         assertThat(allText).contains("TOK_OK");
         assertThat(allText).contains("vnp_txn_ref: TOK_OK");
+        assertThat(allText).contains("TOK_RETURN_OK");
+        assertThat(allText).contains("TOK_RETURN_FAIL");
+        assertThat(allText).contains("vnp_txn_ref: TOK_RETURN_OK");
+        assertThat(allText).contains("vnp_txn_ref: TOK_RETURN_FAIL");
+        assertThat(allText).contains("Màn hình hiển thị kết quả thanh toán và tạo Token liên kết thẻ:");
+        assertThat(allText).doesNotContain("Màn hình hiển thị kết quả thanh toán và tạo Token liên kết thẻ: (TxnRef:");
         assertThat(allText).contains("rspCode: \"00\"");
         assertThat(allText).contains("rspCode: \"01\"");
         assertThat(allText).contains("Message: \"Confirm successful\"");
         assertThat(allText).contains("Đạt");
         assertThat(allText).contains("Không đạt");
         assertThat(allText).contains("Đã xử lý");
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(content))) {
+            assertThat(doc.getAllPictures()).isNotEmpty();
+            assertThat(DocxLayoutPolisher.countMerchantHeaderBlankLines(doc)).isZero();
+        }
     }
 
     @Test
@@ -387,6 +398,20 @@ class MinutesExportApiIntegrationTest {
             boolean log,
             boolean exceptionHandled
     ) {
+        saveManualAcceptance(session, partner, whitelist, log, exceptionHandled, null, null, null, null);
+    }
+
+    private void saveManualAcceptance(
+            TestSession session,
+            PartnerConfig partner,
+            boolean whitelist,
+            boolean log,
+            boolean exceptionHandled,
+            String returnSuccessTxnRef,
+            String returnFailedTxnRef,
+            String returnSuccessImage,
+            String returnFailedImage
+    ) {
         ManualAcceptance manual = new ManualAcceptance();
         manual.setPartnerId(partner.getId());
         manual.setSessionId(session.getId());
@@ -394,6 +419,10 @@ class MinutesExportApiIntegrationTest {
         manual.setWhitelistIpPassed(whitelist);
         manual.setLogStoragePassed(log);
         manual.setExceptionHandled(exceptionHandled);
+        manual.setReturnSuccessTxnRef(returnSuccessTxnRef);
+        manual.setReturnFailedTxnRef(returnFailedTxnRef);
+        manual.setReturnSuccessImage(returnSuccessImage);
+        manual.setReturnFailedImage(returnFailedImage);
         manualAcceptanceRepository.save(manual);
     }
 

@@ -26,6 +26,8 @@ final class TokenRecurringMinutesDocumentFiller {
     private static final Logger log = LoggerFactory.getLogger(TokenRecurringMinutesDocumentFiller.class);
 
     private static final DateTimeFormatter HEADER_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String MERCHANT_REQUEST_LOG_PLACEHOLDER = "[Merchant điền log request sang VNPAY tại đây]";
+    private static final String MERCHANT_SCREENSHOT_PLACEHOLDER = "[Merchant chụp và dán ảnh tại đây]";
 
     private final ObjectMapper objectMapper;
     private final MinutesViewModelMapper viewModelMapper;
@@ -84,6 +86,9 @@ final class TokenRecurringMinutesDocumentFiller {
         boolean inCardVerification = false;
         boolean cardSuccess = false;
         boolean cardFailed = false;
+        boolean inPayAndCreateToken = false;
+        boolean payAndCreateSuccess = false;
+        boolean payAndCreateFailed = false;
         TestCaseType currentCase = null;
         boolean inInput = false;
         boolean inOutput = false;
@@ -94,6 +99,33 @@ final class TokenRecurringMinutesDocumentFiller {
                 continue;
             }
 
+            if (ctx.flow() == PaymentFlow.TOKEN && text.startsWith("Thanh toán và tạo Token liên kết thẻ thành công")) {
+                inPayAndCreateToken = true;
+                inIpn = false;
+                payAndCreateSuccess = true;
+                payAndCreateFailed = false;
+                currentCase = null;
+                inInput = false;
+                inOutput = false;
+                continue;
+            }
+            if (ctx.flow() == PaymentFlow.TOKEN && text.startsWith("Thanh toán và tạo Token liên kết thẻ không thành công")) {
+                inPayAndCreateToken = true;
+                inIpn = false;
+                payAndCreateFailed = true;
+                payAndCreateSuccess = false;
+                currentCase = null;
+                inInput = false;
+                inOutput = false;
+                continue;
+            }
+            if (ctx.flow() == PaymentFlow.TOKEN && text.startsWith("Thanh toán bằng mã Token")) {
+                inPayAndCreateToken = false;
+                payAndCreateSuccess = false;
+                payAndCreateFailed = false;
+                inInput = false;
+                inOutput = false;
+            }
             if (ctx.flow() == PaymentFlow.RECURRING && text.startsWith("Khách hàng xác thực thẻ thành công")) {
                 inCardVerification = true;
                 inIpn = false;
@@ -117,6 +149,7 @@ final class TokenRecurringMinutesDocumentFiller {
             if (text.contains("IPN URL")) {
                 inIpn = true;
                 inCardVerification = false;
+                inPayAndCreateToken = false;
                 currentCase = null;
                 inInput = false;
                 inOutput = false;
@@ -125,6 +158,7 @@ final class TokenRecurringMinutesDocumentFiller {
             if (text.contains("Quy định khác")) {
                 inIpn = false;
                 inCardVerification = false;
+                inPayAndCreateToken = false;
                 currentCase = null;
                 inInput = false;
                 inOutput = false;
@@ -146,7 +180,21 @@ final class TokenRecurringMinutesDocumentFiller {
             }
 
             if (inCardVerification && text.startsWith("Màn hình thông báo:")) {
-                if (embedReturnScreenImage(paragraph, ctx, cardSuccess, cardFailed)) {
+                if (embedReturnScreenImage(paragraph, ctx, cardSuccess, cardFailed, "Màn hình thông báo:")) {
+                    continue;
+                }
+            }
+
+            if (inPayAndCreateToken && inInput && text.contains(MERCHANT_REQUEST_LOG_PLACEHOLDER)) {
+                String txnRef = payAndCreateTxnRef(ctx, payAndCreateSuccess, payAndCreateFailed);
+                if (!txnRef.isBlank()) {
+                    DocxParagraphWalker.setParagraphText(paragraph, "vnp_txn_ref: " + txnRef);
+                    continue;
+                }
+            }
+
+            if (inPayAndCreateToken && inOutput && text.contains(MERCHANT_SCREENSHOT_PLACEHOLDER)) {
+                if (embedReturnScreenImageOnly(paragraph, ctx, payAndCreateSuccess, payAndCreateFailed)) {
                     continue;
                 }
             }
@@ -211,6 +259,14 @@ final class TokenRecurringMinutesDocumentFiller {
         if (caseNo.equals(profile.logCaseNo()) && manual != null) {
             return passEvaluation(manual.getLogStoragePassed());
         }
+        if (ctx.flow() == PaymentFlow.TOKEN && manual != null) {
+            if ("3".equals(caseNo)) {
+                return passEvaluation(hasText(manual.getReturnSuccessTxnRef()));
+            }
+            if ("4".equals(caseNo)) {
+                return passEvaluation(hasText(manual.getReturnFailedTxnRef()));
+            }
+        }
         return profile.mapAutoCase(caseNo, situation)
                 .flatMap(ctx::run)
                 .map(run -> passEvaluation(run.isPassed()))
@@ -246,7 +302,7 @@ final class TokenRecurringMinutesDocumentFiller {
         }
     }
 
-    private boolean embedReturnScreenImage(
+    private boolean embedReturnScreenImageOnly(
             XWPFParagraph paragraph,
             MinutesExportContext ctx,
             boolean returnSuccess,
@@ -259,14 +315,49 @@ final class TokenRecurringMinutesDocumentFiller {
         String imageDataUrl = returnSuccess
                 ? manual.getReturnSuccessImage()
                 : returnFailed ? manual.getReturnFailedImage() : null;
-        if (DocxImageInserter.embedDataUrlImage(paragraph, imageDataUrl, "Màn hình thông báo:")) {
-            return true;
+        return DocxImageInserter.embedDataUrlImage(paragraph, imageDataUrl, null);
+    }
+
+    private String payAndCreateTxnRef(MinutesExportContext ctx, boolean returnSuccess, boolean returnFailed) {
+        ManualAcceptance manual = ctx.getManualAcceptance();
+        if (manual == null) {
+            return "";
         }
+        if (returnSuccess) {
+            return blank(manual.getReturnSuccessTxnRef());
+        }
+        if (returnFailed) {
+            return blank(manual.getReturnFailedTxnRef());
+        }
+        return "";
+    }
+
+    private boolean embedReturnScreenImage(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            boolean returnSuccess,
+            boolean returnFailed,
+            String captionPrefix
+    ) {
+        ManualAcceptance manual = ctx.getManualAcceptance();
+        if (manual == null) {
+            return false;
+        }
+        String imageDataUrl = returnSuccess
+                ? manual.getReturnSuccessImage()
+                : returnFailed ? manual.getReturnFailedImage() : null;
         String txnRef = returnSuccess
                 ? blank(manual.getReturnSuccessTxnRef())
                 : returnFailed ? blank(manual.getReturnFailedTxnRef()) : "";
+        String caption = captionPrefix;
         if (!txnRef.isBlank()) {
-            DocxParagraphWalker.setParagraphText(paragraph, "Màn hình thông báo: (TxnRef: " + txnRef + ")");
+            caption = captionPrefix + " (TxnRef: " + txnRef + ")";
+        }
+        if (DocxImageInserter.embedDataUrlImage(paragraph, imageDataUrl, caption)) {
+            return true;
+        }
+        if (!txnRef.isBlank()) {
+            DocxParagraphWalker.setParagraphText(paragraph, caption);
             return true;
         }
         return false;
@@ -496,6 +587,10 @@ final class TokenRecurringMinutesDocumentFiller {
 
     private String blank(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String normalize(String text) {
