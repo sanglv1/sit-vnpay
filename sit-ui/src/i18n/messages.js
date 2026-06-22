@@ -12,6 +12,8 @@ export const messages = {
       emailPlaceholder: 'email@vnpay.vn',
       submit: 'Đăng nhập',
       failed: 'Đăng nhập thất bại',
+      invalidCredentials: 'Email hoặc mật khẩu không đúng',
+      accountDisabled: 'Tài khoản đã bị vô hiệu hóa',
     },
     menu: {
       home: 'Trang chủ',
@@ -319,6 +321,8 @@ export const messages = {
       emailPlaceholder: 'email@vnpay.vn',
       submit: 'Sign in',
       failed: 'Sign in failed',
+      invalidCredentials: 'Invalid email or password',
+      accountDisabled: 'This account has been disabled',
     },
     menu: {
       home: 'Home',

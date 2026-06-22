@@ -7,9 +7,17 @@ import { useI18n } from '../../i18n/useI18n';
 import LanguageSwitcher from '../Shared/LanguageSwitcher';
 import { appActions, authActions } from '../../stores';
 
-const resolveRspMsg = (error, fallback) => (
-  error?.response?.data?.rspMsg || error?.message || fallback
-);
+/** Map backend auth errors to locale — API rspMsg is always Vietnamese. */
+const resolveLoginError = (error, t) => {
+  const msg = (error?.message ?? '').toLowerCase();
+  if (msg.includes('vô hiệu') || msg.includes('disabled')) {
+    return t('login.accountDisabled');
+  }
+  if (msg.includes('mật khẩu') || msg.includes('password') || msg.includes('email')) {
+    return t('login.invalidCredentials');
+  }
+  return t('login.failed');
+};
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -37,7 +45,7 @@ const Login = () => {
       dispatch(authActions.login(token, user));
       navigate(location.state?.from || '/', { replace: true });
     } catch (e) {
-      setLoginError(resolveRspMsg(e, t('login.failed')));
+      setLoginError(resolveLoginError(e, t));
     } finally {
       dispatch(appActions.loadingOff());
     }
