@@ -12,5 +12,7 @@ public class TestMetadataResponse {
     private final List<EnumOption> callbackTypes;
     private final List<EnumOption> testCases;
     private final List<EnumOption> paymentFlows;
+    private final List<EnumOption> recurringIpnCommands;
+    private final List<EnumOption> tokenIpnCommands;
     private final String defaultTxnRef;
 }

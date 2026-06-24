@@ -1,7 +1,9 @@
 package com.vnpay.sit.core;
 
 import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.model.TokenIpnCommand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -73,6 +75,7 @@ class CallbackParamBuilderTest {
                 .containsEntry("vnp_amount", "20000000")
                 .containsEntry("vnp_response_code", "00")
                 .containsEntry("vnp_transaction_status", "00")
+                .containsEntry("vnp_command", "pay_and_create")
                 .containsEntry("vnp_app_user_id", "SIT_USER")
                 .containsEntry("vnp_txn_desc", "SIT test TXN100")
                 .containsEntry("vnp_curr_code", "VND");
@@ -80,7 +83,7 @@ class CallbackParamBuilderTest {
     }
 
     @Test
-    void recurring_success_shouldMatchVnPayIpnShape() {
+    void recurring_success_defaultCommand_shouldMatchCardVerificationIpn() {
         Map<String, String> params = CallbackParamBuilder.build(
                 PaymentFlow.RECURRING, TestCaseType.SUCCESS, "OREDTES4", "RECX4BXBF31F", 2_000_000L, null);
 
@@ -90,7 +93,7 @@ class CallbackParamBuilderTest {
                 .containsEntry("vnp_amount", "200000000")
                 .containsEntry("vnp_response_code", "00")
                 .containsEntry("vnp_transaction_status", "00")
-                .containsEntry("vnp_command", "pay_n_recurring")
+                .containsEntry("vnp_command", "recurring")
                 .containsEntry("vnp_app_user_id", "SIT_USER")
                 .containsEntry("vnp_order_info", "SIT test RECX4BXBF31F")
                 .containsEntry("vnp_curr_code", "VND")
@@ -104,52 +107,154 @@ class CallbackParamBuilderTest {
         assertThat(params).doesNotContainKeys("vnp_txn_desc", "vnp_recurring_id");
     }
 
-    @Test
-    void recurring_nonSuccess_shouldOmitOptionalCardAndTokenFields() {
+    @ParameterizedTest
+    @EnumSource(RecurringIpnCommand.class)
+    void recurring_success_shouldSupportAllVnPayCommands(RecurringIpnCommand command) {
         Map<String, String> params = CallbackParamBuilder.build(
-                PaymentFlow.RECURRING, TestCaseType.INVALID_HASH, "TMN04", "REC002", 300_000L, null);
+                PaymentFlow.RECURRING,
+                TestCaseType.SUCCESS,
+                "TMN04",
+                "REC001",
+                300_000L,
+                null,
+                command);
+
+        assertThat(params)
+                .containsEntry("vnp_command", command.getCommandValue())
+                .containsEntry("vnp_app_user_id", "SIT_USER")
+                .containsEntry("vnp_order_info", "SIT test REC001")
+                .containsEntry("vnp_curr_code", "VND")
+                .containsEntry("vnp_token", "SIT_TOKEN_REC001");
+    }
+
+    @ParameterizedTest
+    @EnumSource(RecurringIpnCommand.class)
+    void recurring_nonSuccess_shouldOmitOptionalCardAndTokenFields(RecurringIpnCommand command) {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.RECURRING, TestCaseType.INVALID_HASH, "TMN04", "REC002", 300_000L, null, command);
 
         assertThat(params).doesNotContainKeys(
                 "vnp_token", "vnp_token_exp_date", "vnp_card_number", "vnp_bank_code", "vnp_bank_tran_no");
         assertThat(params)
-                .containsEntry("vnp_command", "pay_n_recurring")
+                .containsEntry("vnp_command", command.getCommandValue())
                 .containsEntry("vnp_order_info", "SIT test REC002")
                 .containsEntry("vnp_curr_code", "VND");
     }
 
     @Test
-    void token_success_shouldIncludeTokenCommandAndOptionalFields() {
+    void recurring_payNRecurring_success_shouldUseExplicitCommand() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.RECURRING,
+                TestCaseType.SUCCESS,
+                "TMN04",
+                "REC001",
+                300_000L,
+                null,
+                RecurringIpnCommand.PAY_N_RECURRING);
+
+        assertThat(params).containsEntry("vnp_command", "pay_n_recurring");
+    }
+
+    @Test
+    void recurring_updateToken_success_shouldUseExplicitCommand() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.RECURRING,
+                TestCaseType.SUCCESS,
+                "TMN04",
+                "REC001",
+                300_000L,
+                null,
+                RecurringIpnCommand.UPDATE_TOKEN);
+
+        assertThat(params).containsEntry("vnp_command", "update_token");
+    }
+
+    @Test
+    void token_success_defaultCommand_shouldMatchPayAndCreateIpn() {
         Map<String, String> params = CallbackParamBuilder.build(
                 PaymentFlow.TOKEN, TestCaseType.SUCCESS, "TMN03", "TOK001", 75_000L, null);
 
         assertThat(params)
-                .containsEntry("vnp_command", "token_pay")
+                .containsEntry("vnp_command", "pay_and_create")
                 .containsEntry("vnp_token", "SIT_TOKEN_TOK001")
-                .containsEntry("vnp_card_number", "411111****1111");
+                .containsEntry("vnp_card_number", "411111****1111")
+                .containsEntry("vnp_app_user_id", "SIT_USER")
+                .containsEntry("vnp_txn_desc", "SIT test TOK001")
+                .containsEntry("vnp_curr_code", "VND");
     }
 
-    @Test
-    void token_nonSuccess_shouldOmitOptionalTokenFields() {
+    @ParameterizedTest
+    @EnumSource(TokenIpnCommand.class)
+    void token_success_shouldSupportAllVnPayCommands(TokenIpnCommand command) {
         Map<String, String> params = CallbackParamBuilder.build(
-                PaymentFlow.TOKEN, TestCaseType.INVALID_HASH, "TMN03", "TOK002", 75_000L, null);
+                PaymentFlow.TOKEN,
+                TestCaseType.SUCCESS,
+                "TMN03",
+                "TOK001",
+                75_000L,
+                null,
+                null,
+                command);
+
+        assertThat(params)
+                .containsEntry("vnp_command", command.getCommandValue())
+                .containsEntry("vnp_token", "SIT_TOKEN_TOK001");
+        if (command != TokenIpnCommand.TOKEN_REMOVE) {
+            assertThat(params).containsEntry("vnp_card_number", "411111****1111");
+        } else {
+            assertThat(params).doesNotContainKey("vnp_card_number");
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(TokenIpnCommand.class)
+    void token_nonSuccess_shouldOmitOptionalTokenFields(TokenIpnCommand command) {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.TOKEN, TestCaseType.INVALID_HASH, "TMN03", "TOK002", 75_000L, null, null, command);
 
         assertThat(params).doesNotContainKeys("vnp_token", "vnp_card_number");
         assertThat(params)
-                .containsEntry("vnp_command", "token_pay")
+                .containsEntry("vnp_command", command.getCommandValue())
                 .containsEntry("vnp_app_user_id", "SIT_USER")
                 .containsEntry("vnp_curr_code", "VND");
     }
 
     @Test
-    void recurring_success_shouldIncludeRecurringCommandFields() {
+    void token_pay_success_shouldUseExplicitCommand() {
         Map<String, String> params = CallbackParamBuilder.build(
-                PaymentFlow.RECURRING, TestCaseType.SUCCESS, "TMN04", "REC001", 300_000L, null);
+                PaymentFlow.TOKEN,
+                TestCaseType.SUCCESS,
+                "TMN03",
+                "TOK001",
+                75_000L,
+                null,
+                null,
+                TokenIpnCommand.TOKEN_PAY);
+
+        assertThat(params).containsEntry("vnp_command", "token_pay");
+    }
+
+    @ParameterizedTest
+    @EnumSource(TokenIpnCommand.class)
+    void token_wrongAmount_shouldOverrideAmountForAllCommands(TokenIpnCommand command) {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.TOKEN, TestCaseType.WRONG_AMOUNT, "TMN01", "TOK003", 100_000L, 99_000L, null, command);
 
         assertThat(params)
-                .containsEntry("vnp_command", "pay_n_recurring")
-                .containsEntry("vnp_app_user_id", "SIT_USER")
-                .containsEntry("vnp_order_info", "SIT test REC001")
-                .containsEntry("vnp_curr_code", "VND");
+                .containsEntry("vnp_amount", "9900000")
+                .containsEntry("vnp_command", command.getCommandValue());
+    }
+
+
+    @ParameterizedTest
+    @EnumSource(RecurringIpnCommand.class)
+    void recurring_wrongAmount_shouldOverrideAmountForAllCommands(RecurringIpnCommand command) {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.RECURRING, TestCaseType.WRONG_AMOUNT, "TMN01", "REC003", 100_000L, 99_000L, command);
+
+        assertThat(params)
+                .containsEntry("vnp_amount", "9900000")
+                .containsEntry("vnp_command", command.getCommandValue());
     }
 
     @Test

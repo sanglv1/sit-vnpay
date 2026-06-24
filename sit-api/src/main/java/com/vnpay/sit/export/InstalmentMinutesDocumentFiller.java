@@ -3,6 +3,10 @@ package com.vnpay.sit.export;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vnpay.sit.manual.InstalmentManualEvidenceSupport;
+import com.vnpay.sit.manual.InstalmentManualScenario;
+import com.vnpay.sit.manual.ManualEvidenceLogParser;
+import com.vnpay.sit.manual.dto.TokenScenarioEvidence;
 import com.vnpay.sit.manual.entity.ManualAcceptance;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.testrun.entity.TestRun;
@@ -14,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,6 +30,7 @@ final class InstalmentMinutesDocumentFiller {
     private static final Logger log = LoggerFactory.getLogger(InstalmentMinutesDocumentFiller.class);
 
     private static final DateTimeFormatter HEADER_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String RESPONSE_MARKER = "Dữ liệu VNPAY trả về:";
 
     private final ObjectMapper objectMapper;
     private final MinutesViewModelMapper viewModelMapper;
@@ -80,12 +86,12 @@ final class InstalmentMinutesDocumentFiller {
 
     private void fillBody(XWPFDocument document, MinutesExportContext ctx) {
         boolean inIpn = false;
-        boolean inReturnPayment = false;
-        boolean returnSuccess = false;
-        boolean returnFailed = false;
+        InstalmentManualScenario currentScenario = null;
         TestCaseType currentCase = null;
         boolean inInput = false;
         boolean inOutput = false;
+        Map<InstalmentManualScenario, Map<String, String>> requestParams = new EnumMap<>(InstalmentManualScenario.class);
+        Map<InstalmentManualScenario, Map<String, String>> responseParams = new EnumMap<>(InstalmentManualScenario.class);
 
         for (XWPFParagraph paragraph : DocxParagraphWalker.allParagraphs(document)) {
             String text = normalize(paragraph.getText());
@@ -93,29 +99,17 @@ final class InstalmentMinutesDocumentFiller {
                 continue;
             }
 
-            if (text.startsWith("Thanh toán trả góp thành công")) {
-                inReturnPayment = true;
+            Optional<InstalmentManualScenario> scenario = InstalmentManualScenario.bySituationPrefix(text);
+            if (scenario.isPresent()) {
+                currentScenario = scenario.get();
                 inIpn = false;
-                returnSuccess = true;
-                returnFailed = false;
-                currentCase = null;
-                inInput = false;
-                inOutput = false;
-                continue;
-            }
-            if (text.startsWith("Thanh toán trả góp không thành công")) {
-                inReturnPayment = true;
-                inIpn = false;
-                returnFailed = true;
-                returnSuccess = false;
-                currentCase = null;
                 inInput = false;
                 inOutput = false;
                 continue;
             }
             if (text.contains("IPN URL")) {
                 inIpn = true;
-                inReturnPayment = false;
+                currentScenario = null;
                 currentCase = null;
                 inInput = false;
                 inOutput = false;
@@ -123,7 +117,7 @@ final class InstalmentMinutesDocumentFiller {
             }
             if (text.contains("Quy định khác")) {
                 inIpn = false;
-                inReturnPayment = false;
+                currentScenario = null;
                 currentCase = null;
                 inInput = false;
                 inOutput = false;
@@ -144,24 +138,40 @@ final class InstalmentMinutesDocumentFiller {
                 continue;
             }
 
-            if (inReturnPayment && inOutput) {
-                Optional<TestRun> run = returnSuccess
-                        ? ctx.run(TestCaseType.SUCCESS)
-                        : ctx.run(TestCaseType.FAILED);
-                if (run.isPresent() && fillInstalmentParamLine(paragraph, text, parseParams(run.get()))) {
+            if (currentScenario != null && inInput && ManualEvidenceLogParser.isTemplateFieldLine(text)) {
+                InstalmentManualScenario activeScenario = currentScenario;
+                Map<String, String> params = requestParams.computeIfAbsent(
+                        activeScenario,
+                        ignored -> ManualEvidenceLogParser.parse(
+                                scenarioField(ctx, activeScenario, TokenScenarioEvidence::getRequestLog))
+                );
+                if (fillEvidenceFieldLine(paragraph, text, params)) {
                     continue;
                 }
             }
 
-            if (inReturnPayment && text.startsWith("Màn hình thông báo:")) {
-                if (embedReturnScreenImage(paragraph, ctx, returnSuccess, returnFailed)) {
+            if (currentScenario != null && inOutput && ManualEvidenceLogParser.isTemplateFieldLine(text)) {
+                InstalmentManualScenario activeScenario = currentScenario;
+                Map<String, String> params = responseParams.computeIfAbsent(
+                        activeScenario,
+                        ignored -> ManualEvidenceLogParser.parse(
+                                scenarioField(ctx, activeScenario, TokenScenarioEvidence::getResponseLog))
+                );
+                if (fillEvidenceFieldLine(paragraph, text, params)) {
                     continue;
                 }
             }
 
-            if (inReturnPayment && inInput && text.startsWith("tmnCode:")) {
-                DocxParagraphWalker.setParagraphText(paragraph, "tmnCode: " + ctx.getPartner().getTmnCode());
-                continue;
+            if (currentScenario != null && text.startsWith(RESPONSE_MARKER)) {
+                if (fillScenarioResponseLog(paragraph, ctx, currentScenario)) {
+                    continue;
+                }
+            }
+
+            if (currentScenario != null && text.startsWith("Màn hình")) {
+                if (fillScenarioScreenshot(paragraph, ctx, currentScenario, text)) {
+                    continue;
+                }
             }
 
             if (inIpn && inInput && currentCase != null) {
@@ -186,7 +196,6 @@ final class InstalmentMinutesDocumentFiller {
                             .filter(s -> !s.isBlank())
                             .orElse(defaultStatusMessage(currentCase));
                     DocxParagraphWalker.setParagraphText(paragraph, "Message: " + quote(message));
-                    continue;
                 }
             }
         }
@@ -223,6 +232,13 @@ final class InstalmentMinutesDocumentFiller {
         if ("27".equals(caseNo) && manual != null) {
             return passEvaluation(manual.getLogStoragePassed());
         }
+        if (manual != null) {
+            Optional<InstalmentManualScenario> scenario = InstalmentManualScenario.byCaseNo(caseNo);
+            if (scenario.isPresent()) {
+                return passEvaluation(InstalmentManualEvidenceSupport.passesEvaluation(
+                        manual, scenario.get(), objectMapper));
+            }
+        }
         return mapAutoCase(caseNo, situation)
                 .flatMap(ctx::run)
                 .map(run -> passEvaluation(run.isPassed()))
@@ -247,6 +263,87 @@ final class InstalmentMinutesDocumentFiller {
             return Optional.of(TestCaseType.FAILED);
         }
         return Optional.empty();
+    }
+
+    private boolean fillScenarioResponseLog(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            InstalmentManualScenario scenario
+    ) {
+        String responseLog = scenarioField(ctx, scenario, TokenScenarioEvidence::getResponseLog);
+        if (responseLog.isBlank()) {
+            return false;
+        }
+        DocxParagraphWalker.setParagraphText(paragraph, RESPONSE_MARKER + " " + responseLog.trim());
+        return true;
+    }
+
+    private boolean fillScenarioScreenshot(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            InstalmentManualScenario scenario,
+            String captionPrefix
+    ) {
+        String image = scenarioField(ctx, scenario, TokenScenarioEvidence::getImage);
+        if (DocxImageInserter.embedDataUrlImage(paragraph, image, captionPrefix)) {
+            return true;
+        }
+        String txnRef = extractTxnRefFromRequest(ctx, scenario);
+        if (!txnRef.isBlank()) {
+            DocxParagraphWalker.setParagraphText(paragraph, captionPrefix + " (TxnRef: " + txnRef + ")");
+            return true;
+        }
+        return false;
+    }
+
+    private String extractTxnRefFromRequest(MinutesExportContext ctx, InstalmentManualScenario scenario) {
+        String requestLog = scenarioField(ctx, scenario, TokenScenarioEvidence::getRequestLog);
+        if (requestLog.isBlank()) {
+            ManualAcceptance manual = ctx.getManualAcceptance();
+            if (manual == null) {
+                return "";
+            }
+            if (scenario == InstalmentManualScenario.PAY_SUCCESS) {
+                return blank(manual.getReturnSuccessTxnRef());
+            }
+            if (scenario == InstalmentManualScenario.PAY_FAILED) {
+                return blank(manual.getReturnFailedTxnRef());
+            }
+            return "";
+        }
+        return blank(ManualEvidenceLogParser.extractTxnRef(requestLog));
+    }
+
+    private String scenarioField(
+            MinutesExportContext ctx,
+            InstalmentManualScenario scenario,
+            java.util.function.Function<TokenScenarioEvidence, String> extractor
+    ) {
+        ManualAcceptance manual = ctx.getManualAcceptance();
+        if (manual == null) {
+            return "";
+        }
+        return InstalmentManualEvidenceSupport.evidence(manual, scenario, objectMapper)
+                .map(extractor)
+                .map(this::blank)
+                .orElse("");
+    }
+
+    private boolean fillEvidenceFieldLine(XWPFParagraph paragraph, String text, Map<String, String> params) {
+        Optional<String> label = ManualEvidenceLogParser.templateFieldLabel(text);
+        if (label.isEmpty()) {
+            return false;
+        }
+        String value = ManualEvidenceLogParser.lookup(params, label.get());
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String formatted = ManualEvidenceLogParser.formatFieldLine(label.get(), value);
+        if (formatted == null) {
+            return false;
+        }
+        DocxParagraphWalker.setParagraphText(paragraph, formatted);
+        return true;
     }
 
     private String exceptionEvaluation(Boolean handled) {
@@ -290,32 +387,6 @@ final class InstalmentMinutesDocumentFiller {
                 afterMerchantHeading = false;
             }
         }
-    }
-
-    private boolean embedReturnScreenImage(
-            XWPFParagraph paragraph,
-            MinutesExportContext ctx,
-            boolean returnSuccess,
-            boolean returnFailed
-    ) {
-        ManualAcceptance manual = ctx.getManualAcceptance();
-        if (manual == null) {
-            return false;
-        }
-        String imageDataUrl = returnSuccess
-                ? manual.getReturnSuccessImage()
-                : returnFailed ? manual.getReturnFailedImage() : null;
-        if (DocxImageInserter.embedDataUrlImage(paragraph, imageDataUrl, "Màn hình thông báo:")) {
-            return true;
-        }
-        String txnRef = returnSuccess
-                ? blank(manual.getReturnSuccessTxnRef())
-                : returnFailed ? blank(manual.getReturnFailedTxnRef()) : "";
-        if (!txnRef.isBlank()) {
-            DocxParagraphWalker.setParagraphText(paragraph, "Màn hình thông báo: (TxnRef: " + txnRef + ")");
-            return true;
-        }
-        return false;
     }
 
     private boolean fillInstalmentParamLine(XWPFParagraph paragraph, String text, Map<String, String> params) {

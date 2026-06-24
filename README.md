@@ -248,8 +248,8 @@ Vào **Đối tác → Thêm đối tác**, khai báo:
 | Luồng | Đặc điểm callback |
 |-------|-------------------|
 | PAY | PascalCase: `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
-| TOKEN | snake_case: `vnp_tmn_code`, `vnp_txn_ref`, `vnp_amount`, `vnp_command`, `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` (tùy chọn) khi GD thành công |
-| RECURRING | snake_case: `vnp_command=pay_n_recurring`, `vnp_order_info`, `vnp_app_user_id`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_token_exp_date`, `vnp_card_number`, `vnp_bank_code`, `vnp_bank_tran_no`, `vnp_card_type` khi GD thành công |
+| TOKEN | snake_case: `vnp_command` = `pay_and_create` (mặc định suite IPN), `token_create` (tạo Token), `token_pay` (thanh toán bằng Token), hoặc `token_remove` (xóa Token); `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` (tùy chọn) khi GD thành công |
+| RECURRING | snake_case: `vnp_command` = `recurring` (xác thực thẻ, mặc định suite IPN), `pay_n_recurring` (thanh toán định kỳ), hoặc `update_token` (cập nhật token); `vnp_order_info`, `vnp_app_user_id`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_token_exp_date`, `vnp_card_number`, `vnp_bank_code`, `vnp_bank_tran_no`, `vnp_card_type` khi GD thành công |
 | INSTALMENT | PascalCase (tương tự PAY): `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
 
 ### Bước 3 — Tạo phiên kiểm thử (`/sessions/new`)

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import SessionHeader from './SessionHeader';
@@ -109,13 +109,62 @@ const toTestInputPayload = (values) => ({
   wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
 });
 
+const TOKEN_ORDER_HINT_KEYS = {
+  PAY_AND_CREATE: 'sessions.orderHintTokenPayAndCreate',
+  TOKEN_CREATE: 'sessions.orderHintTokenCreate',
+  TOKEN_PAY: 'sessions.orderHintTokenPay',
+  TOKEN_REMOVE: 'sessions.orderHintTokenRemove',
+};
+
+const RECURRING_ORDER_HINT_KEYS = {
+  RECURRING: 'sessions.orderHintRecurringAuth',
+  PAY_N_RECURRING: 'sessions.orderHintRecurringCharge',
+  UPDATE_TOKEN: 'sessions.orderHintRecurringUpdate',
+};
+
+const buildWorkflowSteps = (flow, t) => {
+  if (flow === 'TOKEN') {
+    return [
+      t('sessions.autoWorkflowToken1'),
+      t('sessions.autoWorkflowToken2'),
+      t('sessions.autoWorkflowToken3'),
+    ];
+  }
+  if (flow === 'RECURRING') {
+    return [
+      t('sessions.autoWorkflowRecurring1'),
+      t('sessions.autoWorkflowRecurring2'),
+      t('sessions.autoWorkflowRecurring3'),
+    ];
+  }
+  if (flow === 'INSTALMENT') {
+    return [
+      t('sessions.autoWorkflowInstalment1'),
+      t('sessions.autoWorkflowInstalment2'),
+      t('sessions.autoWorkflowInstalment3'),
+    ];
+  }
+  return [
+    t('sessions.autoWorkflowPay1'),
+    t('sessions.autoWorkflowPay2'),
+    t('sessions.autoWorkflowPay3'),
+  ];
+};
+
+const orderDescKey = (flow) => {
+  if (flow === 'TOKEN') return 'sessions.orderDescToken';
+  if (flow === 'RECURRING') return 'sessions.orderDescRecurring';
+  if (flow === 'INSTALMENT') return 'sessions.orderDescInstalment';
+  return 'sessions.orderDescPay';
+};
+
 const SessionAuto = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { t } = useI18n();
   const [runningCase, setRunningCase] = useState(null);
-  const { register, handleSubmit, getValues, reset, setValue } = useForm();
+  const { register, handleSubmit, getValues, reset, setValue, control } = useForm();
   const initializedSessionId = useRef(null);
   const formReadyRef = useRef(false);
 
@@ -124,7 +173,35 @@ const SessionAuto = () => {
 
   const { data: workspace } = useSessionWorkspaceQuery(sessionId);
   const session = workspace?.session;
-  const metadata = workspace ? { testCases: workspace.testCases } : null;
+  const metadata = workspace ? {
+    testCases: workspace.testCases,
+    partnerFlow: workspace.partnerFlow,
+    recurringIpnCommands: workspace.recurringIpnCommands ?? [],
+    tokenIpnCommands: workspace.tokenIpnCommands ?? [],
+  } : null;
+
+  const tokenIpnCommand = useWatch({ control, name: 'tokenIpnCommand' });
+  const recurringIpnCommand = useWatch({ control, name: 'recurringIpnCommand' });
+
+  const workflowSteps = useMemo(
+    () => buildWorkflowSteps(metadata?.partnerFlow, t),
+    [metadata?.partnerFlow, t],
+  );
+
+  const orderHint = useMemo(() => {
+    if (metadata?.partnerFlow === 'TOKEN' && tokenIpnCommand) {
+      const key = TOKEN_ORDER_HINT_KEYS[tokenIpnCommand];
+      return key ? t(key) : null;
+    }
+    if (metadata?.partnerFlow === 'RECURRING' && recurringIpnCommand) {
+      const key = RECURRING_ORDER_HINT_KEYS[recurringIpnCommand];
+      return key ? t(key) : null;
+    }
+    return null;
+  }, [metadata?.partnerFlow, tokenIpnCommand, recurringIpnCommand, t]);
+
+  const showCommandAdvanced = metadata?.partnerFlow === 'TOKEN' || metadata?.partnerFlow === 'RECURRING';
+
   const runTest = useRunTestMutation(sessionId);
   const runIpnSuite = useRunIpnSuiteMutation(sessionId);
   const saveTestInput = useSaveSessionTestInputMutation(sessionId);
@@ -157,6 +234,8 @@ const SessionAuto = () => {
       confirmedAmountVnd: session.confirmedAmountVnd ?? '',
       wrongAmountVnd: session.wrongAmountVnd ?? '',
       testCase: 'SUCCESS',
+      recurringIpnCommand: 'RECURRING',
+      tokenIpnCommand: 'PAY_AND_CREATE',
     });
 
     requestAnimationFrame(() => {
@@ -186,7 +265,7 @@ const SessionAuto = () => {
   const buildPayload = (values, caseValue) => {
     const resolvedCase = caseValue ?? values.testCase;
     const order = resolveOrderForCase(resolvedCase, values);
-    return {
+    const payload = {
       partnerId: Number(session.partnerId),
       sessionId: Number(sessionId),
       callbackType: 'IPN',
@@ -195,6 +274,13 @@ const SessionAuto = () => {
       amountVnd: order.amountVnd,
       wrongAmountVnd: resolveWrongAmountVnd(values, resolvedCase),
     };
+    if (metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand) {
+      payload.recurringIpnCommand = values.recurringIpnCommand;
+    }
+    if (metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand) {
+      payload.tokenIpnCommand = values.tokenIpnCommand;
+    }
+    return payload;
   };
 
   const runSingleCase = async (caseValue) => {
@@ -268,6 +354,12 @@ const SessionAuto = () => {
           failedTxnRef: values.failedTxnRef.trim(),
           failedAmountVnd: values.failedAmountVnd ? Number(values.failedAmountVnd) : null,
           wrongAmountVnd: resolveWrongAmountVnd(values, 'WRONG_AMOUNT'),
+          ...(metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand
+            ? { recurringIpnCommand: values.recurringIpnCommand }
+            : {}),
+          ...(metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand
+            ? { tokenIpnCommand: values.tokenIpnCommand }
+            : {}),
         },
         config: { timeout: 180000 },
       });
@@ -375,11 +467,27 @@ const SessionAuto = () => {
           <input type="hidden" {...register('confirmedTxnRef')} />
           <input type="hidden" {...register('confirmedAmountVnd')} />
 
+          <div className="alert alert-light border mb-3" style={{ fontSize: 13 }}>
+            <strong>{t('sessions.autoWorkflowTitle')}</strong>
+            <ol className="mb-0 mt-2 ps-3">
+              {workflowSteps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </div>
+
           <div className="order-input-group mb-3">
             <h4 className="order-input-title">{t('sessions.orderTitle')}</h4>
             <p className="order-input-desc sit-page-subtitle">
-              {t('sessions.orderDesc')}
+              {t(orderDescKey(metadata?.partnerFlow))}
             </p>
+            {orderHint && (
+              <p className="order-input-desc sit-page-subtitle mb-2" style={{ color: 'var(--bs-primary)' }}>
+                <i className="ri-information-line" aria-hidden="true" />
+                {' '}
+                {orderHint}
+              </p>
+            )}
             <div className="order-prep-table">
               <div className="order-prep-head">
                 <span />
@@ -416,6 +524,43 @@ const SessionAuto = () => {
               </div>
             </div>
           </div>
+
+          {showCommandAdvanced && (
+            <details className="order-input-group mb-3">
+              <summary className="order-input-title" style={{ cursor: 'pointer' }}>
+                {t('sessions.autoAdvancedCommandTitle')}
+              </summary>
+              <p className="order-input-desc sit-page-subtitle mt-2 mb-2">
+                {t('sessions.autoAdvancedCommandNote')}
+              </p>
+              {metadata?.partnerFlow === 'RECURRING' && metadata.recurringIpnCommands.length > 0 && (
+                <div className="mb-2">
+                  <label className="form-label small mb-1">{t('sessions.recurringCommandTitle')}</label>
+                  <select className="form-select form-select-sm" {...register('recurringIpnCommand')}>
+                    {metadata.recurringIpnCommands.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                        {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {metadata?.partnerFlow === 'TOKEN' && metadata.tokenIpnCommands.length > 0 && (
+                <div>
+                  <label className="form-label small mb-1">{t('sessions.tokenCommandTitle')}</label>
+                  <select className="form-select form-select-sm" {...register('tokenIpnCommand')}>
+                    {metadata.tokenIpnCommands.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                        {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </details>
+          )}
 
           <div className="form-footer">
             <button type="button" className="btn btn-primary" onClick={onRunIpnSuite}>

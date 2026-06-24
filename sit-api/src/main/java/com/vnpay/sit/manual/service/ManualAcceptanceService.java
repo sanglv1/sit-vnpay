@@ -1,8 +1,16 @@
 package com.vnpay.sit.manual.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
+import com.vnpay.sit.manual.InstalmentManualEvidenceSupport;
+import com.vnpay.sit.manual.InstalmentManualScenario;
+import com.vnpay.sit.manual.RecurringManualEvidenceSupport;
+import com.vnpay.sit.manual.RecurringManualScenario;
+import com.vnpay.sit.manual.TokenManualEvidenceSupport;
+import com.vnpay.sit.manual.TokenManualScenario;
 import com.vnpay.sit.manual.dto.ManualAcceptanceForm;
+import com.vnpay.sit.manual.dto.TokenScenarioEvidence;
 import com.vnpay.sit.manual.entity.ManualAcceptance;
 import com.vnpay.sit.manual.repository.ManualAcceptanceRepository;
 import com.vnpay.sit.partner.entity.PartnerConfig;
@@ -12,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -20,15 +29,18 @@ public class ManualAcceptanceService {
     private final ManualAcceptanceRepository repository;
     private final PartnerService partnerService;
     private final AccessControlService accessControlService;
+    private final ObjectMapper objectMapper;
 
     public ManualAcceptanceService(
             ManualAcceptanceRepository repository,
             PartnerService partnerService,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.partnerService = partnerService;
         this.accessControlService = accessControlService;
+        this.objectMapper = objectMapper;
     }
 
     public Optional<ManualAcceptance> findLatestBySession(Long sessionId) {
@@ -66,8 +78,44 @@ public class ManualAcceptanceService {
         entity.setWhitelistIpPassed(form.getWhitelistIpPassed());
         entity.setLogStoragePassed(form.getLogStoragePassed());
         entity.setNote(form.getNote());
+        applyTokenScenarioEvidence(entity, form);
+        applyRecurringScenarioEvidence(entity, form);
+        applyInstalmentScenarioEvidence(entity, form);
 
         return repository.save(entity);
+    }
+
+    private void applyInstalmentScenarioEvidence(ManualAcceptance entity, ManualAcceptanceForm form) {
+        Map<InstalmentManualScenario, TokenScenarioEvidence> existing =
+                InstalmentManualEvidenceSupport.parse(entity.getInstalmentScenarioEvidence(), objectMapper);
+        Map<InstalmentManualScenario, TokenScenarioEvidence> incoming =
+                InstalmentManualEvidenceSupport.fromFormMap(form.getInstalmentScenarioEvidence());
+        Map<InstalmentManualScenario, TokenScenarioEvidence> merged =
+                InstalmentManualEvidenceSupport.mergeEvidence(existing, incoming, entity);
+        entity.setInstalmentScenarioEvidence(InstalmentManualEvidenceSupport.serialize(merged, objectMapper));
+        InstalmentManualEvidenceSupport.syncLegacyReturnFields(entity, merged);
+    }
+
+    private void applyRecurringScenarioEvidence(ManualAcceptance entity, ManualAcceptanceForm form) {
+        Map<RecurringManualScenario, TokenScenarioEvidence> existing =
+                RecurringManualEvidenceSupport.parse(entity.getRecurringScenarioEvidence(), objectMapper);
+        Map<RecurringManualScenario, TokenScenarioEvidence> incoming =
+                RecurringManualEvidenceSupport.fromFormMap(form.getRecurringScenarioEvidence());
+        Map<RecurringManualScenario, TokenScenarioEvidence> merged =
+                RecurringManualEvidenceSupport.mergeEvidence(existing, incoming, entity);
+        entity.setRecurringScenarioEvidence(RecurringManualEvidenceSupport.serialize(merged, objectMapper));
+        RecurringManualEvidenceSupport.syncLegacyReturnFields(entity, merged);
+    }
+
+    private void applyTokenScenarioEvidence(ManualAcceptance entity, ManualAcceptanceForm form) {
+        Map<TokenManualScenario, TokenScenarioEvidence> existing =
+                TokenManualEvidenceSupport.parse(entity.getTokenScenarioEvidence(), objectMapper);
+        Map<TokenManualScenario, TokenScenarioEvidence> incoming =
+                TokenManualEvidenceSupport.fromFormMap(form.getTokenScenarioEvidence());
+        Map<TokenManualScenario, TokenScenarioEvidence> merged =
+                TokenManualEvidenceSupport.mergeEvidence(existing, incoming, entity);
+        entity.setTokenScenarioEvidence(TokenManualEvidenceSupport.serialize(merged, objectMapper));
+        TokenManualEvidenceSupport.syncLegacyReturnFields(entity, merged);
     }
 
     private TestSession resolveSession(ManualAcceptanceForm form, SitUserPrincipal principal) {

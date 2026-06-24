@@ -1,6 +1,9 @@
 package com.vnpay.sit.api;
 
 import com.vnpay.sit.api.dto.TestSessionResponse;
+import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.partner.entity.PartnerConfig;
+import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.JwtAuthenticationFilter;
 import com.vnpay.sit.auth.JwtService;
@@ -47,6 +50,9 @@ class TestSessionApiContractTest {
 
     @MockBean
     private AccessControlService accessControlService;
+
+    @MockBean
+    private PartnerService partnerService;
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -111,12 +117,19 @@ class TestSessionApiContractTest {
         org.mockito.Mockito.when(testSessionService.getById(eq(10L), any())).thenReturn(session);
         org.mockito.Mockito.when(testExecutionService.findLatestRunsForSession(eq(10L), any()))
                 .thenReturn(List.of());
+        PartnerConfig partner = new PartnerConfig();
+        partner.setId(1L);
+        partner.setFlow(PaymentFlow.PAY);
+        org.mockito.Mockito.when(partnerService.requireAccessible(eq(1L), any())).thenReturn(partner);
 
         mockMvc.perform(get("/api/sessions/10/workspace"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.session.id").value(10))
+                .andExpect(jsonPath("$.data.partnerFlow").value("PAY"))
                 .andExpect(jsonPath("$.data.latestRuns").isArray())
                 .andExpect(jsonPath("$.data.testCases").isArray())
-                .andExpect(jsonPath("$.data.testCases[0].value").exists());
+                .andExpect(jsonPath("$.data.testCases[0].value").exists())
+                .andExpect(jsonPath("$.data.recurringIpnCommands").isArray())
+                .andExpect(jsonPath("$.data.tokenIpnCommands").isArray());
     }
 }

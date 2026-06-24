@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Map;
+
 @Getter
 @Setter
 public class ManualAcceptanceForm {
@@ -28,4 +30,13 @@ public class ManualAcceptanceForm {
     private Boolean logStoragePassed;
 
     private String note;
+
+    /** Key = {@link com.vnpay.sit.manual.TokenManualScenario#name()}. */
+    private Map<String, TokenScenarioEvidence> tokenScenarioEvidence;
+
+    /** Key = {@link com.vnpay.sit.manual.RecurringManualScenario#name()}. */
+    private Map<String, TokenScenarioEvidence> recurringScenarioEvidence;
+
+    /** Key = {@link com.vnpay.sit.manual.InstalmentManualScenario#name()}. */
+    private Map<String, TokenScenarioEvidence> instalmentScenarioEvidence;
 }

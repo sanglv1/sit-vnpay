@@ -50,10 +50,9 @@ const SessionHeader = ({ session, onRerunAll }) => {
         <div className="d-flex gap-2 flex-wrap">
           <button
             type="button"
-            className="btn btn-light-primary btn-sm"
+            className={`btn btn-sm ${qcSaved ? 'btn-light-primary' : 'btn-light-warning'}`}
             onClick={onExportMinutes}
-            disabled={!qcSaved}
-            title={qcSaved ? undefined : t('sessions.exportQcRequired')}
+            title={qcSaved ? t('sessions.exportMinutes') : t('sessions.exportQcRequired')}
           >
             <i className="ri-file-download-line" />
             {' '}

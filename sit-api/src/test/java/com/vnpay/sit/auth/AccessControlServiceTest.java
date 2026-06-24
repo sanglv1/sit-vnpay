@@ -2,6 +2,7 @@ package com.vnpay.sit.auth;
 
 import com.vnpay.sit.model.UserRole;
 import com.vnpay.sit.partner.entity.PartnerConfig;
+import com.vnpay.sit.partner.repository.PartnerConfigRepository;
 import com.vnpay.sit.session.entity.TestSession;
 import com.vnpay.sit.session.repository.TestSessionRepository;
 import com.vnpay.sit.testrun.entity.TestRun;
@@ -24,11 +25,14 @@ class AccessControlServiceTest {
     @Mock
     private TestSessionRepository sessionRepository;
 
+    @Mock
+    private PartnerConfigRepository partnerRepository;
+
     private AccessControlService accessControlService;
 
     @BeforeEach
     void setUp() {
-        accessControlService = new AccessControlService(sessionRepository);
+        accessControlService = new AccessControlService(sessionRepository, partnerRepository);
     }
 
     @Test
@@ -101,6 +105,22 @@ class AccessControlServiceTest {
 
         assertThatCode(() -> accessControlService.requirePartnerAccess(
                 partner, principal("qc@merchant.com", UserRole.MERCHANT_QC)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void requireSessionAccess_shouldAllowPartnerOwnerWhenSessionCreatorMissing() {
+        TestSession session = new TestSession();
+        session.setId(1L);
+        session.setPartnerId(9L);
+
+        PartnerConfig partner = new PartnerConfig();
+        partner.setId(9L);
+        partner.setCreatedByEmail("qc@merchant.com");
+        when(partnerRepository.findById(9L)).thenReturn(java.util.Optional.of(partner));
+
+        assertThatCode(() -> accessControlService.requireSessionAccess(
+                session, principal("qc@merchant.com", UserRole.MERCHANT_QC)))
                 .doesNotThrowAnyException();
     }
 

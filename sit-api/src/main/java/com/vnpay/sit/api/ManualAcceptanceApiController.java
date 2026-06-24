@@ -1,5 +1,6 @@
 package com.vnpay.sit.api;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vnpay.sit.api.dto.ApiResponse;
 import com.vnpay.sit.api.dto.ManualAcceptanceResponse;
 import com.vnpay.sit.auth.AccessControlService;
@@ -17,13 +18,16 @@ public class ManualAcceptanceApiController {
 
     private final ManualAcceptanceService manualAcceptanceService;
     private final AccessControlService accessControlService;
+    private final ObjectMapper objectMapper;
 
     public ManualAcceptanceApiController(
             ManualAcceptanceService manualAcceptanceService,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            ObjectMapper objectMapper
     ) {
         this.manualAcceptanceService = manualAcceptanceService;
         this.accessControlService = accessControlService;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/latest")
@@ -40,7 +44,7 @@ public class ManualAcceptanceApiController {
             accessControlService.requireAdmin(principal);
             entity = manualAcceptanceService.findLatestByPartner(partnerId).orElse(null);
         }
-        return ApiResponse.ok(entity != null ? ManualAcceptanceResponse.from(entity) : null);
+        return ApiResponse.ok(entity != null ? ManualAcceptanceResponse.from(entity, objectMapper) : null);
     }
 
     @PostMapping
@@ -54,6 +58,6 @@ public class ManualAcceptanceApiController {
             accessControlService.requireAdmin(principal);
         }
         ManualAcceptance saved = manualAcceptanceService.save(form, principal);
-        return ApiResponse.ok(ManualAcceptanceResponse.from(saved));
+        return ApiResponse.ok(ManualAcceptanceResponse.from(saved, objectMapper));
     }
 }

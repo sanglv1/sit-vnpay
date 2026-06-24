@@ -1,7 +1,9 @@
 package com.vnpay.sit.core;
 
 import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.model.TokenIpnCommand;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -26,6 +28,31 @@ public final class CallbackParamBuilder {
             long amountVnd,
             Long wrongAmountVnd
     ) {
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, null, null);
+    }
+
+    public static Map<String, String> build(
+            PaymentFlow flow,
+            TestCaseType testCase,
+            String tmnCode,
+            String txnRef,
+            long amountVnd,
+            Long wrongAmountVnd,
+            RecurringIpnCommand recurringCommand
+    ) {
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, null);
+    }
+
+    public static Map<String, String> build(
+            PaymentFlow flow,
+            TestCaseType testCase,
+            String tmnCode,
+            String txnRef,
+            long amountVnd,
+            Long wrongAmountVnd,
+            RecurringIpnCommand recurringCommand,
+            TokenIpnCommand tokenCommand
+    ) {
         Map<String, String> params = new LinkedHashMap<>();
         String now = formatPayDate();
         long amountMinor = amountVnd * 100;
@@ -35,15 +62,11 @@ public final class CallbackParamBuilder {
             case INSTALMENT -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "VISA", null);
             case TOKEN -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
-                putSnakeCaseCommandFields(params, txnRef, "token_pay");
-                if (testCase == TestCaseType.SUCCESS) {
-                    params.put("vnp_token", "SIT_TOKEN_" + txnRef);
-                    params.put("vnp_card_number", "411111****1111");
-                }
+                putTokenIpnFields(params, txnRef, testCase, tokenCommand);
             }
             case RECURRING -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
-                putRecurringIpnFields(params, txnRef, testCase);
+                putRecurringIpnFields(params, txnRef, testCase, recurringCommand);
             }
         }
 
@@ -105,9 +128,32 @@ public final class CallbackParamBuilder {
         params.put("vnp_curr_code", "VND");
     }
 
-    /** IPN Recurring thật từ VNPay dùng pay_n_recurring + vnp_order_info (không phải vnp_txn_desc). */
-    private static void putRecurringIpnFields(Map<String, String> params, String txnRef, TestCaseType testCase) {
-        params.put("vnp_command", "pay_n_recurring");
+    private static void putTokenIpnFields(
+            Map<String, String> params,
+            String txnRef,
+            TestCaseType testCase,
+            TokenIpnCommand tokenCommand
+    ) {
+        TokenIpnCommand command = tokenCommand != null ? tokenCommand : TokenIpnCommand.defaultForIpnSuite();
+        putSnakeCaseCommandFields(params, txnRef, command.getCommandValue());
+        if (testCase == TestCaseType.SUCCESS) {
+            params.put("vnp_token", "SIT_TOKEN_" + txnRef);
+            if (command != TokenIpnCommand.TOKEN_REMOVE) {
+                params.put("vnp_card_number", "411111****1111");
+            }
+        }
+    }
+
+    private static void putRecurringIpnFields(
+            Map<String, String> params,
+            String txnRef,
+            TestCaseType testCase,
+            RecurringIpnCommand recurringCommand
+    ) {
+        RecurringIpnCommand command = recurringCommand != null
+                ? recurringCommand
+                : RecurringIpnCommand.defaultForIpnSuite();
+        params.put("vnp_command", command.getCommandValue());
         params.put("vnp_app_user_id", SIT_APP_USER_ID);
         params.put("vnp_order_info", "SIT test " + txnRef);
         params.put("vnp_curr_code", "VND");

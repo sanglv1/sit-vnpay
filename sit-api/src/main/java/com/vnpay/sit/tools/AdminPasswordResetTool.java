@@ -74,15 +74,19 @@ public final class AdminPasswordResetTool {
             }
 
             try (PreparedStatement ps = conn.prepareStatement(
-                    "SELECT email, LEFT(password_hash, 7), LENGTH(password_hash) FROM sit_user "
-                            + "WHERE LOWER(email) = LOWER(?)")) {
+                    "SELECT password_hash FROM sit_user WHERE LOWER(email) = LOWER(?)")) {
                 ps.setString(1, email);
                 try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        System.out.println("Row: " + rs.getString(1)
-                                + " hash=" + rs.getString(2)
-                                + " len=" + rs.getInt(3));
+                    if (!rs.next()) {
+                        System.err.println("ERROR: user not found after write");
+                        System.exit(2);
                     }
+                    String stored = rs.getString(1);
+                    if (!encoder.matches(password, stored)) {
+                        System.err.println("ERROR: BCrypt verify failed for stored hash");
+                        System.exit(2);
+                    }
+                    System.out.println("BCrypt verify OK (len=" + stored.length() + ")");
                 }
             }
         }

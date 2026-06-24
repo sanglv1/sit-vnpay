@@ -6,6 +6,8 @@
 export type PaymentFlow = 'PAY' | 'TOKEN' | 'RECURRING' | 'INSTALMENT';
 export type CallbackType = 'RETURN' | 'IPN';
 export type UserRole = 'ADMIN' | 'MERCHANT_QC';
+export type RecurringIpnCommand = 'RECURRING' | 'PAY_N_RECURRING' | 'UPDATE_TOKEN';
+export type TokenIpnCommand = 'TOKEN_CREATE' | 'PAY_AND_CREATE' | 'TOKEN_PAY' | 'TOKEN_REMOVE';
 export type TestCaseType =
   | 'UNKNOWN_ERROR'
   | 'INVALID_HASH'
@@ -95,8 +97,11 @@ export type SessionCompletionFilter = 'ALL' | 'COMPLETED' | 'IN_PROGRESS' | 'NOT
 
 export interface SessionWorkspaceResponse {
   session: TestSessionResponse;
+  partnerFlow: PaymentFlow;
   latestRuns: TestRunResponse[];
   testCases: EnumOption[];
+  recurringIpnCommands: EnumOption[];
+  tokenIpnCommands: EnumOption[];
 }
 
 export interface EnumOption {
@@ -112,6 +117,8 @@ export interface TestMetadataResponse {
   callbackTypes: EnumOption[];
   testCases: EnumOption[];
   paymentFlows: EnumOption[];
+  recurringIpnCommands: EnumOption[];
+  tokenIpnCommands: EnumOption[];
   defaultTxnRef: string;
 }
 
@@ -162,6 +169,12 @@ export interface AuthResponse {
   user: UserResponse;
 }
 
+export interface TokenScenarioEvidence {
+  requestLog: string | null;
+  responseLog: string | null;
+  image: string | null;
+}
+
 export interface ManualAcceptanceResponse {
   id: number;
   partnerId: number;
@@ -174,6 +187,9 @@ export interface ManualAcceptanceResponse {
   whitelistIpPassed: boolean | null;
   logStoragePassed: boolean | null;
   note: string | null;
+  tokenScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
+  recurringScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
+  instalmentScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
   updatedAt: string;
 }
 
@@ -276,4 +292,7 @@ export interface ManualAcceptanceRequest {
   whitelistIpPassed?: boolean;
   logStoragePassed?: boolean;
   note?: string;
+  tokenScenarioEvidence?: Record<string, TokenScenarioEvidence>;
+  recurringScenarioEvidence?: Record<string, TokenScenarioEvidence>;
+  instalmentScenarioEvidence?: Record<string, TokenScenarioEvidence>;
 }

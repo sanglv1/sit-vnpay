@@ -3,6 +3,12 @@ package com.vnpay.sit.export;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vnpay.sit.manual.RecurringManualEvidenceSupport;
+import com.vnpay.sit.manual.RecurringManualScenario;
+import com.vnpay.sit.manual.TokenManualEvidenceSupport;
+import com.vnpay.sit.manual.TokenManualScenario;
+import com.vnpay.sit.manual.ManualEvidenceLogParser;
+import com.vnpay.sit.manual.dto.TokenScenarioEvidence;
 import com.vnpay.sit.manual.entity.ManualAcceptance;
 import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.TestCaseType;
@@ -15,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,7 +34,10 @@ final class TokenRecurringMinutesDocumentFiller {
 
     private static final DateTimeFormatter HEADER_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String MERCHANT_REQUEST_LOG_PLACEHOLDER = "[Merchant điền log request sang VNPAY tại đây]";
+    private static final String MERCHANT_RESPONSE_LOG_PLACEHOLDER = "[Merchant điền log kết quả phản hồi từ VNPAY tại đây]";
     private static final String MERCHANT_SCREENSHOT_PLACEHOLDER = "[Merchant chụp và dán ảnh tại đây]";
+    private static final String RECURRING_RESPONSE_MARKER = "Dữ liệu VNPAY trả về:";
+    private static final String TOKEN_RESPONSE_MARKER = "Dữ liệu VNPAY phản hồi:";
 
     private final ObjectMapper objectMapper;
     private final MinutesViewModelMapper viewModelMapper;
@@ -83,15 +93,14 @@ final class TokenRecurringMinutesDocumentFiller {
 
     private void fillBody(XWPFDocument document, MinutesExportContext ctx) {
         boolean inIpn = false;
-        boolean inCardVerification = false;
-        boolean cardSuccess = false;
-        boolean cardFailed = false;
-        boolean inPayAndCreateToken = false;
-        boolean payAndCreateSuccess = false;
-        boolean payAndCreateFailed = false;
+        TokenManualScenario currentTokenScenario = null;
+        RecurringManualScenario currentRecurringScenario = null;
         TestCaseType currentCase = null;
         boolean inInput = false;
         boolean inOutput = false;
+        Map<RecurringManualScenario, Map<String, String>> recurringRequestParams = new EnumMap<>(RecurringManualScenario.class);
+        Map<RecurringManualScenario, Map<String, String>> recurringResponseParams = new EnumMap<>(RecurringManualScenario.class);
+        Map<TokenManualScenario, Map<String, String>> tokenResponseParams = new EnumMap<>(TokenManualScenario.class);
 
         for (XWPFParagraph paragraph : DocxParagraphWalker.allParagraphs(document)) {
             String text = normalize(paragraph.getText());
@@ -99,57 +108,32 @@ final class TokenRecurringMinutesDocumentFiller {
                 continue;
             }
 
-            if (ctx.flow() == PaymentFlow.TOKEN && text.startsWith("Thanh toán và tạo Token liên kết thẻ thành công")) {
-                inPayAndCreateToken = true;
-                inIpn = false;
-                payAndCreateSuccess = true;
-                payAndCreateFailed = false;
-                currentCase = null;
-                inInput = false;
-                inOutput = false;
-                continue;
+            if (ctx.flow() == PaymentFlow.TOKEN) {
+                Optional<TokenManualScenario> tokenScenario = TokenManualScenario.bySituationPrefix(text);
+                if (tokenScenario.isPresent()) {
+                    currentTokenScenario = tokenScenario.get();
+                    currentRecurringScenario = null;
+                    inIpn = false;
+                    inInput = false;
+                    inOutput = false;
+                    continue;
+                }
             }
-            if (ctx.flow() == PaymentFlow.TOKEN && text.startsWith("Thanh toán và tạo Token liên kết thẻ không thành công")) {
-                inPayAndCreateToken = true;
-                inIpn = false;
-                payAndCreateFailed = true;
-                payAndCreateSuccess = false;
-                currentCase = null;
-                inInput = false;
-                inOutput = false;
-                continue;
-            }
-            if (ctx.flow() == PaymentFlow.TOKEN && text.startsWith("Thanh toán bằng mã Token")) {
-                inPayAndCreateToken = false;
-                payAndCreateSuccess = false;
-                payAndCreateFailed = false;
-                inInput = false;
-                inOutput = false;
-            }
-            if (ctx.flow() == PaymentFlow.RECURRING && text.startsWith("Khách hàng xác thực thẻ thành công")) {
-                inCardVerification = true;
-                inIpn = false;
-                cardSuccess = true;
-                cardFailed = false;
-                currentCase = null;
-                inInput = false;
-                inOutput = false;
-                continue;
-            }
-            if (ctx.flow() == PaymentFlow.RECURRING && text.startsWith("Khách hàng xác thực thẻ không thành công")) {
-                inCardVerification = true;
-                inIpn = false;
-                cardFailed = true;
-                cardSuccess = false;
-                currentCase = null;
-                inInput = false;
-                inOutput = false;
-                continue;
+            if (ctx.flow() == PaymentFlow.RECURRING) {
+                Optional<RecurringManualScenario> recurringScenario = RecurringManualScenario.bySituationPrefix(text);
+                if (recurringScenario.isPresent()) {
+                    currentRecurringScenario = recurringScenario.get();
+                    currentTokenScenario = null;
+                    inIpn = false;
+                    inInput = false;
+                    inOutput = false;
+                    continue;
+                }
             }
             if (text.contains("IPN URL")) {
                 inIpn = true;
-                inCardVerification = false;
-                inPayAndCreateToken = false;
+                currentTokenScenario = null;
+                currentRecurringScenario = null;
                 currentCase = null;
                 inInput = false;
                 inOutput = false;
@@ -157,8 +141,8 @@ final class TokenRecurringMinutesDocumentFiller {
             }
             if (text.contains("Quy định khác")) {
                 inIpn = false;
-                inCardVerification = false;
-                inPayAndCreateToken = false;
+                currentTokenScenario = null;
+                currentRecurringScenario = null;
                 currentCase = null;
                 inInput = false;
                 inOutput = false;
@@ -179,22 +163,71 @@ final class TokenRecurringMinutesDocumentFiller {
                 continue;
             }
 
-            if (inCardVerification && text.startsWith("Màn hình thông báo:")) {
-                if (embedReturnScreenImage(paragraph, ctx, cardSuccess, cardFailed, "Màn hình thông báo:")) {
+            if (currentTokenScenario != null && inInput && text.contains(MERCHANT_REQUEST_LOG_PLACEHOLDER)) {
+                if (fillTokenScenarioRequestLog(paragraph, ctx, currentTokenScenario)) {
                     continue;
                 }
             }
 
-            if (inPayAndCreateToken && inInput && text.contains(MERCHANT_REQUEST_LOG_PLACEHOLDER)) {
-                String txnRef = payAndCreateTxnRef(ctx, payAndCreateSuccess, payAndCreateFailed);
-                if (!txnRef.isBlank()) {
-                    DocxParagraphWalker.setParagraphText(paragraph, "vnp_txn_ref: " + txnRef);
+            if (currentTokenScenario != null && text.startsWith(TOKEN_RESPONSE_MARKER)) {
+                if (fillTokenScenarioResponseSummary(paragraph, ctx, currentTokenScenario)) {
                     continue;
                 }
             }
 
-            if (inPayAndCreateToken && inOutput && text.contains(MERCHANT_SCREENSHOT_PLACEHOLDER)) {
-                if (embedReturnScreenImageOnly(paragraph, ctx, payAndCreateSuccess, payAndCreateFailed)) {
+            if (currentTokenScenario != null && inOutput && text.contains(MERCHANT_RESPONSE_LOG_PLACEHOLDER)) {
+                if (fillTokenScenarioResponseLog(paragraph, ctx, currentTokenScenario)) {
+                    continue;
+                }
+            }
+
+            if (currentTokenScenario != null && inOutput && ManualEvidenceLogParser.isTemplateFieldLine(text)) {
+                Map<String, String> params = tokenResponseParams.computeIfAbsent(
+                        currentTokenScenario,
+                        scenario -> ManualEvidenceLogParser.parse(
+                                tokenScenarioField(ctx, scenario, TokenScenarioEvidence::getResponseLog))
+                );
+                if (fillEvidenceFieldLine(paragraph, text, params)) {
+                    continue;
+                }
+            }
+
+            if (currentTokenScenario != null && text.contains(MERCHANT_SCREENSHOT_PLACEHOLDER)) {
+                if (fillTokenScenarioScreenshot(paragraph, ctx, currentTokenScenario)) {
+                    continue;
+                }
+            }
+
+            if (currentRecurringScenario != null && inInput && ManualEvidenceLogParser.isTemplateFieldLine(text)) {
+                Map<String, String> params = recurringRequestParams.computeIfAbsent(
+                        currentRecurringScenario,
+                        scenario -> ManualEvidenceLogParser.parse(
+                                recurringScenarioField(ctx, scenario, TokenScenarioEvidence::getRequestLog))
+                );
+                if (fillEvidenceFieldLine(paragraph, text, params)) {
+                    continue;
+                }
+            }
+
+            if (currentRecurringScenario != null && inOutput && ManualEvidenceLogParser.isTemplateFieldLine(text)) {
+                Map<String, String> params = recurringResponseParams.computeIfAbsent(
+                        currentRecurringScenario,
+                        scenario -> ManualEvidenceLogParser.parse(
+                                recurringScenarioField(ctx, scenario, TokenScenarioEvidence::getResponseLog))
+                );
+                if (fillEvidenceFieldLine(paragraph, text, params)) {
+                    continue;
+                }
+            }
+
+            if (currentRecurringScenario != null && text.startsWith(RECURRING_RESPONSE_MARKER)) {
+                if (fillRecurringScenarioResponseLog(paragraph, ctx, currentRecurringScenario)) {
+                    continue;
+                }
+            }
+
+            if (currentRecurringScenario != null && text.startsWith("Màn hình thông báo:")) {
+                if (fillRecurringScenarioScreenshot(paragraph, ctx, currentRecurringScenario, text)) {
                     continue;
                 }
             }
@@ -260,11 +293,15 @@ final class TokenRecurringMinutesDocumentFiller {
             return passEvaluation(manual.getLogStoragePassed());
         }
         if (ctx.flow() == PaymentFlow.TOKEN && manual != null) {
-            if ("3".equals(caseNo)) {
-                return passEvaluation(hasText(manual.getReturnSuccessTxnRef()));
+            Optional<TokenManualScenario> scenario = TokenManualScenario.byCaseNo(caseNo);
+            if (scenario.isPresent()) {
+                return passEvaluation(TokenManualEvidenceSupport.passesEvaluation(manual, scenario.get(), objectMapper));
             }
-            if ("4".equals(caseNo)) {
-                return passEvaluation(hasText(manual.getReturnFailedTxnRef()));
+        }
+        if (ctx.flow() == PaymentFlow.RECURRING && manual != null) {
+            Optional<RecurringManualScenario> scenario = RecurringManualScenario.byCaseNo(caseNo);
+            if (scenario.isPresent()) {
+                return passEvaluation(RecurringManualEvidenceSupport.passesEvaluation(manual, scenario.get(), objectMapper));
             }
         }
         return profile.mapAutoCase(caseNo, situation)
@@ -302,65 +339,154 @@ final class TokenRecurringMinutesDocumentFiller {
         }
     }
 
-    private boolean embedReturnScreenImageOnly(
+    private boolean fillRecurringScenarioResponseLog(
             XWPFParagraph paragraph,
             MinutesExportContext ctx,
-            boolean returnSuccess,
-            boolean returnFailed
+            RecurringManualScenario scenario
     ) {
-        ManualAcceptance manual = ctx.getManualAcceptance();
-        if (manual == null) {
+        String responseLog = recurringScenarioField(ctx, scenario, TokenScenarioEvidence::getResponseLog);
+        if (responseLog.isBlank()) {
             return false;
         }
-        String imageDataUrl = returnSuccess
-                ? manual.getReturnSuccessImage()
-                : returnFailed ? manual.getReturnFailedImage() : null;
-        return DocxImageInserter.embedDataUrlImage(paragraph, imageDataUrl, null);
+        DocxParagraphWalker.setParagraphText(paragraph, RECURRING_RESPONSE_MARKER + " " + responseLog.trim());
+        return true;
     }
 
-    private String payAndCreateTxnRef(MinutesExportContext ctx, boolean returnSuccess, boolean returnFailed) {
+    private boolean fillRecurringScenarioScreenshot(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            RecurringManualScenario scenario,
+            String captionPrefix
+    ) {
+        String image = recurringScenarioField(ctx, scenario, TokenScenarioEvidence::getImage);
+        if (DocxImageInserter.embedDataUrlImage(paragraph, image, captionPrefix)) {
+            return true;
+        }
+        String txnRef = extractTxnRefFromRequest(ctx, scenario);
+        if (!txnRef.isBlank()) {
+            DocxParagraphWalker.setParagraphText(paragraph, captionPrefix + " (TxnRef: " + txnRef + ")");
+            return true;
+        }
+        return false;
+    }
+
+    private String extractTxnRefFromRequest(MinutesExportContext ctx, RecurringManualScenario scenario) {
+        String requestLog = recurringScenarioField(ctx, scenario, TokenScenarioEvidence::getRequestLog);
+        if (requestLog.isBlank()) {
+            ManualAcceptance manual = ctx.getManualAcceptance();
+            if (manual == null) {
+                return "";
+            }
+            if (scenario == RecurringManualScenario.CARD_VERIFY_SUCCESS) {
+                return blank(manual.getReturnSuccessTxnRef());
+            }
+            if (scenario == RecurringManualScenario.CARD_VERIFY_FAILED) {
+                return blank(manual.getReturnFailedTxnRef());
+            }
+            return "";
+        }
+        return blank(ManualEvidenceLogParser.extractTxnRef(requestLog));
+    }
+
+    private String recurringScenarioField(
+            MinutesExportContext ctx,
+            RecurringManualScenario scenario,
+            java.util.function.Function<TokenScenarioEvidence, String> extractor
+    ) {
         ManualAcceptance manual = ctx.getManualAcceptance();
         if (manual == null) {
             return "";
         }
-        if (returnSuccess) {
-            return blank(manual.getReturnSuccessTxnRef());
-        }
-        if (returnFailed) {
-            return blank(manual.getReturnFailedTxnRef());
-        }
-        return "";
+        return RecurringManualEvidenceSupport.evidence(manual, scenario, objectMapper)
+                .map(extractor)
+                .map(this::blank)
+                .orElse("");
     }
 
-    private boolean embedReturnScreenImage(
+    private boolean fillEvidenceFieldLine(XWPFParagraph paragraph, String text, Map<String, String> params) {
+        Optional<String> label = ManualEvidenceLogParser.templateFieldLabel(text);
+        if (label.isEmpty()) {
+            return false;
+        }
+        String value = ManualEvidenceLogParser.lookup(params, label.get());
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String formatted = ManualEvidenceLogParser.formatFieldLine(label.get(), value);
+        if (formatted == null) {
+            return false;
+        }
+        DocxParagraphWalker.setParagraphText(paragraph, formatted);
+        return true;
+    }
+
+    private boolean fillTokenScenarioRequestLog(
             XWPFParagraph paragraph,
             MinutesExportContext ctx,
-            boolean returnSuccess,
-            boolean returnFailed,
-            String captionPrefix
+            TokenManualScenario scenario
+    ) {
+        String requestLog = tokenScenarioField(ctx, scenario, TokenScenarioEvidence::getRequestLog);
+        if (requestLog.isBlank()) {
+            return false;
+        }
+        Map<String, String> params = ManualEvidenceLogParser.parse(requestLog);
+        String formatted = ManualEvidenceLogParser.formatAsFieldLines(params);
+        DocxParagraphWalker.setParagraphText(paragraph, formatted.isBlank() ? requestLog.trim() : formatted);
+        return true;
+    }
+
+    private boolean fillTokenScenarioResponseSummary(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            TokenManualScenario scenario
+    ) {
+        String responseLog = tokenScenarioField(ctx, scenario, TokenScenarioEvidence::getResponseLog);
+        if (responseLog.isBlank()) {
+            return false;
+        }
+        String formatted = ManualEvidenceLogParser.formatAsFieldLines(ManualEvidenceLogParser.parse(responseLog));
+        if (formatted.isBlank()) {
+            return false;
+        }
+        DocxParagraphWalker.setParagraphText(paragraph, TOKEN_RESPONSE_MARKER + "\n" + formatted);
+        return true;
+    }
+
+    private boolean fillTokenScenarioResponseLog(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            TokenManualScenario scenario
+    ) {
+        String responseLog = tokenScenarioField(ctx, scenario, TokenScenarioEvidence::getResponseLog);
+        if (responseLog.isBlank()) {
+            return false;
+        }
+        DocxParagraphWalker.setParagraphText(paragraph, responseLog.trim());
+        return true;
+    }
+
+    private boolean fillTokenScenarioScreenshot(
+            XWPFParagraph paragraph,
+            MinutesExportContext ctx,
+            TokenManualScenario scenario
+    ) {
+        String image = tokenScenarioField(ctx, scenario, TokenScenarioEvidence::getImage);
+        return DocxImageInserter.embedDataUrlImage(paragraph, image, null);
+    }
+
+    private String tokenScenarioField(
+            MinutesExportContext ctx,
+            TokenManualScenario scenario,
+            java.util.function.Function<TokenScenarioEvidence, String> extractor
     ) {
         ManualAcceptance manual = ctx.getManualAcceptance();
         if (manual == null) {
-            return false;
+            return "";
         }
-        String imageDataUrl = returnSuccess
-                ? manual.getReturnSuccessImage()
-                : returnFailed ? manual.getReturnFailedImage() : null;
-        String txnRef = returnSuccess
-                ? blank(manual.getReturnSuccessTxnRef())
-                : returnFailed ? blank(manual.getReturnFailedTxnRef()) : "";
-        String caption = captionPrefix;
-        if (!txnRef.isBlank()) {
-            caption = captionPrefix + " (TxnRef: " + txnRef + ")";
-        }
-        if (DocxImageInserter.embedDataUrlImage(paragraph, imageDataUrl, caption)) {
-            return true;
-        }
-        if (!txnRef.isBlank()) {
-            DocxParagraphWalker.setParagraphText(paragraph, caption);
-            return true;
-        }
-        return false;
+        return TokenManualEvidenceSupport.evidence(manual, scenario, objectMapper)
+                .map(extractor)
+                .map(this::blank)
+                .orElse("");
     }
 
     private boolean fillSnakeCaseParamLine(XWPFParagraph paragraph, String text, Map<String, String> params) {

@@ -256,22 +256,22 @@ class MinutesExportApiIntegrationTest {
 
         TestSession session = createSession(partner);
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.SUCCESS, true, "TOK_OK", "00",
-                snakeCaseParams("TOK_OK", "TMNTOK", "00", "00"),
+                tokenParams("TOK_OK", "TMNTOK", "00", "00"),
                 "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.FAILED, false, "TOK_FAIL", "00",
-                snakeCaseParams("TOK_FAIL", "TMNTOK", "24", "02"),
+                tokenParams("TOK_FAIL", "TMNTOK", "24", "02"),
                 "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.ORDER_NOT_FOUND, true, "TOK_MISSING", "01",
-                snakeCaseParams("TOK_MISSING", "TMNTOK", null, null),
+                tokenParams("TOK_MISSING", "TMNTOK", null, null),
                 "{\"RspCode\":\"01\",\"Message\":\"Order not found\"}");
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.ORDER_ALREADY_CONFIRMED, true, "TOK_OK", "02",
-                snakeCaseParams("TOK_OK", "TMNTOK", null, null),
+                tokenParams("TOK_OK", "TMNTOK", null, null),
                 "{\"RspCode\":\"02\",\"Message\":\"Order already confirmed\"}");
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.WRONG_AMOUNT, false, "TOK_OK", "04",
-                snakeCaseParams("TOK_OK", "TMNTOK", null, null, "999"),
+                tokenParams("TOK_OK", "TMNTOK", null, null, "999"),
                 "{\"RspCode\":\"04\",\"Message\":\"Invalid amount\"}");
         saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.INVALID_HASH, true, "TOK_OK", "97",
-                snakeCaseParams("TOK_OK", "TMNTOK", null, null),
+                tokenParams("TOK_OK", "TMNTOK", null, null),
                 "{\"RspCode\":\"97\",\"Message\":\"Invalid signature\"}");
         saveManualAcceptance(session, partner, true, false, true, "TOK_RETURN_OK", "TOK_RETURN_FAIL", TINY_PNG_DATA_URL, TINY_PNG_DATA_URL);
 
@@ -301,6 +301,49 @@ class MinutesExportApiIntegrationTest {
             assertThat(doc.getAllPictures()).isNotEmpty();
             assertThat(DocxLayoutPolisher.countMerchantHeaderBlankLines(doc)).isZero();
         }
+    }
+
+    @Test
+    void exportMinutes_token_shouldParseManualEvidenceLogsIntoTemplate() throws Exception {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setName("Merchant Token");
+        partner.setFlow(PaymentFlow.TOKEN);
+        partner.setTmnCode("TMNTOK");
+        partner.setSecretKey("secret");
+        partner.setReturnUrl("https://merchant.test/return");
+        partner.setIpnUrl("https://merchant.test/ipn");
+        partner.setCreatedByEmail("owner@merchant.test");
+        partner = partnerConfigRepository.save(partner);
+
+        TestSession session = createSession(partner);
+        saveSnakeCaseRun(session, partner, PaymentFlow.TOKEN, TestCaseType.SUCCESS, true, "TOK_OK", "00",
+                tokenParams("TOK_OK", "TMNTOK", "00", "00"),
+                "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
+
+        ManualAcceptance manual = new ManualAcceptance();
+        manual.setPartnerId(partner.getId());
+        manual.setSessionId(session.getId());
+        manual.setPartnerName(partner.getName());
+        manual.setWhitelistIpPassed(true);
+        manual.setLogStoragePassed(true);
+        manual.setExceptionHandled(true);
+        manual.setTokenScenarioEvidence("""
+                {"TOKEN_CREATE_FAILED":{
+                  "requestLog":"GET https://sandbox.vnpayment.vn/token_web/verify?vnp_command=token_create&vnp_txn_ref=TOK_FAIL&vnp_tmn_code=TMNTOK",
+                  "responseLog":"{\\"vnp_response_code\\":\\"24\\",\\"vnp_transaction_status\\":\\"02\\"}",
+                  "image":"%s"
+                }}
+                """.formatted(TINY_PNG_DATA_URL));
+        manualAcceptanceRepository.save(manual);
+
+        byte[] content = exportMinutes(session, "2.1.0");
+        String allText = readDocText(content);
+
+        assertThat(allText).contains("vnp_command: token_create");
+        assertThat(allText).contains("vnp_txn_ref: TOK_FAIL");
+        assertThat(allText).contains("vnp_response_code: 24");
+        assertThat(allText).contains("vnp_transaction_status: 02");
+        assertThat(allText).contains("Dữ liệu VNPAY phản hồi:");
     }
 
     @Test
@@ -453,11 +496,11 @@ class MinutesExportApiIntegrationTest {
         return sb.toString();
     }
 
-    private String recurringParams(String txnRef, String tmnCode, String responseCode, String transactionStatus) {
-        return recurringParams(txnRef, tmnCode, responseCode, transactionStatus, null);
+    private String tokenParams(String txnRef, String tmnCode, String responseCode, String transactionStatus) {
+        return tokenParams(txnRef, tmnCode, responseCode, transactionStatus, null);
     }
 
-    private String recurringParams(
+    private String tokenParams(
             String txnRef,
             String tmnCode,
             String responseCode,
@@ -467,7 +510,49 @@ class MinutesExportApiIntegrationTest {
         StringBuilder sb = new StringBuilder("{");
         sb.append("\"vnp_txn_ref\":\"").append(txnRef).append("\"");
         sb.append(",\"vnp_tmn_code\":\"").append(tmnCode).append("\"");
-        sb.append(",\"vnp_command\":\"pay_n_recurring\"");
+        sb.append(",\"vnp_command\":\"pay_and_create\"");
+        sb.append(",\"vnp_app_user_id\":\"SIT_USER\"");
+        sb.append(",\"vnp_txn_desc\":\"SIT test ").append(txnRef).append("\"");
+        sb.append(",\"vnp_curr_code\":\"VND\"");
+        if (responseCode != null) {
+            sb.append(",\"vnp_response_code\":\"").append(responseCode).append("\"");
+        }
+        if (transactionStatus != null) {
+            sb.append(",\"vnp_transaction_status\":\"").append(transactionStatus).append("\"");
+        }
+        if (amount != null) {
+            sb.append(",\"vnp_amount\":\"").append(amount).append("\"");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String recurringParams(String txnRef, String tmnCode, String responseCode, String transactionStatus) {
+        return recurringParams(txnRef, tmnCode, responseCode, transactionStatus, null, "recurring");
+    }
+
+    private String recurringParams(
+            String txnRef,
+            String tmnCode,
+            String responseCode,
+            String transactionStatus,
+            String amount
+    ) {
+        return recurringParams(txnRef, tmnCode, responseCode, transactionStatus, amount, "recurring");
+    }
+
+    private String recurringParams(
+            String txnRef,
+            String tmnCode,
+            String responseCode,
+            String transactionStatus,
+            String amount,
+            String command
+    ) {
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"vnp_txn_ref\":\"").append(txnRef).append("\"");
+        sb.append(",\"vnp_tmn_code\":\"").append(tmnCode).append("\"");
+        sb.append(",\"vnp_command\":\"").append(command).append("\"");
         sb.append(",\"vnp_order_info\":\"SIT test ").append(txnRef).append("\"");
         sb.append(",\"vnp_curr_code\":\"VND\"");
         if (responseCode != null) {

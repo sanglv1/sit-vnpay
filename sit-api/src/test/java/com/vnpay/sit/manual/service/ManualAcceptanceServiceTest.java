@@ -1,5 +1,6 @@
 package com.vnpay.sit.manual.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.manual.dto.ManualAcceptanceForm;
@@ -39,7 +40,8 @@ class ManualAcceptanceServiceTest {
   @BeforeEach
   void setUp() {
     manualAcceptanceService =
-        new ManualAcceptanceService(repository, partnerService, accessControlService);
+        new ManualAcceptanceService(
+            repository, partnerService, accessControlService, new ObjectMapper());
   }
 
   @Test

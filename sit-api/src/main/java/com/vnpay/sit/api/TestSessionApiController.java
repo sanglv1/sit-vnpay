@@ -3,7 +3,12 @@ package com.vnpay.sit.api;
 import com.vnpay.sit.api.dto.*;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
+import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.model.TokenIpnCommand;
+import com.vnpay.sit.partner.entity.PartnerConfig;
+import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.session.SessionCompletionFilter;
 import com.vnpay.sit.session.dto.CreateSessionForm;
 import com.vnpay.sit.session.dto.SaveSessionTestInputForm;
@@ -28,17 +33,20 @@ public class TestSessionApiController {
     private final MinutesExportService minutesExportService;
     private final TestExecutionService testExecutionService;
     private final AccessControlService accessControlService;
+    private final PartnerService partnerService;
 
     public TestSessionApiController(
             TestSessionService testSessionService,
             MinutesExportService minutesExportService,
             TestExecutionService testExecutionService,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            PartnerService partnerService
     ) {
         this.testSessionService = testSessionService;
         this.minutesExportService = minutesExportService;
         this.testExecutionService = testExecutionService;
         this.accessControlService = accessControlService;
+        this.partnerService = partnerService;
     }
 
     @GetMapping
@@ -98,10 +106,19 @@ public class TestSessionApiController {
             @AuthenticationPrincipal SitUserPrincipal principal
     ) {
         TestSessionResponse session = testSessionService.getById(id, principal);
+        PartnerConfig partner = partnerService.requireAccessible(session.getPartnerId(), principal);
+        PaymentFlow partnerFlow = partner.getFlow();
         return ApiResponse.ok(SessionWorkspaceResponse.builder()
                 .session(session)
+                .partnerFlow(partnerFlow)
                 .latestRuns(testExecutionService.findLatestRunsForSession(id, principal))
                 .testCases(toTestCaseOptions())
+                .recurringIpnCommands(partnerFlow == PaymentFlow.RECURRING
+                        ? toRecurringCommandOptions()
+                        : java.util.List.of())
+                .tokenIpnCommands(partnerFlow == PaymentFlow.TOKEN
+                        ? toTokenCommandOptions()
+                        : java.util.List.of())
                 .build());
     }
 
@@ -156,6 +173,18 @@ public class TestSessionApiController {
         return TestCaseType.autoIpnTestCases().stream()
                 .map(v -> new EnumOption(v.name(), v.getLabel(), v.getExpectedRspCode(),
                         v.getCaseCode(), v.getCheckOrder()))
+                .toList();
+    }
+
+    private static java.util.List<EnumOption> toRecurringCommandOptions() {
+        return java.util.Arrays.stream(RecurringIpnCommand.values())
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getCommandValue(), null, 0))
+                .toList();
+    }
+
+    private static java.util.List<EnumOption> toTokenCommandOptions() {
+        return java.util.Arrays.stream(TokenIpnCommand.values())
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getCommandValue(), null, 0))
                 .toList();
     }
 }

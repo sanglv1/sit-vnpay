@@ -1,7 +1,9 @@
 package com.vnpay.sit.testrun.dto;
 
 import com.vnpay.sit.model.CallbackType;
+import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.model.TokenIpnCommand;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -30,4 +32,10 @@ public class TestRunForm {
     private long amountVnd = 100_000;
 
     private Long wrongAmountVnd;
+
+    /** Chỉ áp dụng khi partner flow = RECURRING; null → mặc định {@code recurring}. */
+    private RecurringIpnCommand recurringIpnCommand;
+
+    /** Chỉ áp dụng khi partner flow = TOKEN; null → mặc định {@code pay_and_create}. */
+    private TokenIpnCommand tokenIpnCommand;
 }

@@ -52,6 +52,18 @@ public class ManualAcceptance {
     @Column(length = 1000)
     private String note;
 
+    /** JSON map: scenario key → requestLog / responseLog / image (biên bản Token mục 1–8). */
+    @Column(name = "token_scenario_evidence", columnDefinition = "TEXT")
+    private String tokenScenarioEvidence;
+
+    /** JSON map: scenario key → requestLog / responseLog / image (biên bản Recurring mục 1–14). */
+    @Column(name = "recurring_scenario_evidence", columnDefinition = "TEXT")
+    private String recurringScenarioEvidence;
+
+    /** JSON map: scenario key → requestLog / responseLog / image (biên bản Instalment mục 1–8). */
+    @Column(name = "instalment_scenario_evidence", columnDefinition = "TEXT")
+    private String instalmentScenarioEvidence;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

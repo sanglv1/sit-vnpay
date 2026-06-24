@@ -7,7 +7,10 @@ import com.vnpay.sit.core.CallbackFields;
 import com.vnpay.sit.core.CallbackParamBuilder;
 import com.vnpay.sit.core.CallbackSigner;
 import com.vnpay.sit.model.CallbackType;
+import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.model.TokenIpnCommand;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.partner.entity.PartnerConfig;
@@ -234,6 +237,8 @@ public class TestExecutionService {
             if (testCase == TestCaseType.WRONG_AMOUNT) {
                 runForm.setWrongAmountVnd(wrongAmount);
             }
+            runForm.setRecurringIpnCommand(form.getRecurringIpnCommand());
+            runForm.setTokenIpnCommand(form.getTokenIpnCommand());
             TestRun run = execute(runForm, principal);
             steps.add(TestSuiteStepResponse.from(step++, testCase, run));
         }
@@ -418,7 +423,9 @@ public class TestExecutionService {
                 partner.getTmnCode(),
                 form.getTxnRef().trim(),
                 form.getAmountVnd(),
-                form.getWrongAmountVnd()
+                form.getWrongAmountVnd(),
+                resolveRecurringCommand(partner.getFlow(), form.getRecurringIpnCommand()),
+                resolveTokenCommand(partner.getFlow(), form.getTokenIpnCommand())
         );
 
         if (form.getTestCase() == TestCaseType.INVALID_HASH) {
@@ -427,6 +434,23 @@ public class TestExecutionService {
             CallbackSigner.attachHash(params, partner.getSecretKey(), partner.getFlow());
         }
         return params;
+    }
+
+    private static RecurringIpnCommand resolveRecurringCommand(
+            PaymentFlow flow,
+            RecurringIpnCommand recurringIpnCommand
+    ) {
+        if (flow != PaymentFlow.RECURRING) {
+            return null;
+        }
+        return recurringIpnCommand != null ? recurringIpnCommand : RecurringIpnCommand.defaultForIpnSuite();
+    }
+
+    private static TokenIpnCommand resolveTokenCommand(PaymentFlow flow, TokenIpnCommand tokenIpnCommand) {
+        if (flow != PaymentFlow.TOKEN) {
+            return null;
+        }
+        return tokenIpnCommand != null ? tokenIpnCommand : TokenIpnCommand.defaultForIpnSuite();
     }
 
     private boolean evaluateIpn(TestCaseType testCase, CallbackHttpRunner.CallbackResponse response, String actualRsp) {

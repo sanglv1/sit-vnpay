@@ -3,7 +3,9 @@ package com.vnpay.sit.api;
 import com.vnpay.sit.api.dto.*;
 import com.vnpay.sit.model.CallbackType;
 import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
+import com.vnpay.sit.model.TokenIpnCommand;
 import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.partner.service.PartnerService;
@@ -47,6 +49,8 @@ public class TestRunApiController {
                 .callbackTypes(toOptions(CallbackType.values()))
                 .testCases(toTestCaseOptions())
                 .paymentFlows(toOptions(PaymentFlow.values()))
+                .recurringIpnCommands(toRecurringCommandOptions())
+                .tokenIpnCommands(toTokenCommandOptions())
                 .defaultTxnRef("SIT" + System.currentTimeMillis() % 1_000_000)
                 .build();
         return ApiResponse.ok(data);
@@ -127,6 +131,18 @@ public class TestRunApiController {
         return TestCaseType.autoIpnTestCases().stream()
                 .map(v -> new EnumOption(v.name(), v.getLabel(), v.getExpectedRspCode(),
                         v.getCaseCode(), v.getCheckOrder()))
+                .toList();
+    }
+
+    private static java.util.List<EnumOption> toRecurringCommandOptions() {
+        return java.util.Arrays.stream(RecurringIpnCommand.values())
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getCommandValue(), null, 0))
+                .toList();
+    }
+
+    private static java.util.List<EnumOption> toTokenCommandOptions() {
+        return java.util.Arrays.stream(TokenIpnCommand.values())
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getCommandValue(), null, 0))
                 .toList();
     }
 }
