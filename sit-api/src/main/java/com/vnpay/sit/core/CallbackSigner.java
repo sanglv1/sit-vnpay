@@ -32,10 +32,12 @@ public final class CallbackSigner {
 
     private static SigningProfile profileFor(PaymentFlow flow) {
         return switch (flow) {
-            case PAY, INSTALMENT -> new SigningProfile(StandardCharsets.UTF_8, true,
+            case PAY, INSTALMENT, QR_DIRECT -> new SigningProfile(StandardCharsets.UTF_8, true, false, false,
                     "vnp_SecureHash", "vnp_SecureHashType");
-            case TOKEN, RECURRING -> new SigningProfile(StandardCharsets.US_ASCII, false,
+            case TOKEN, RECURRING -> new SigningProfile(StandardCharsets.US_ASCII, false, true, false,
                     "vnp_secure_hash", "vnp_secure_hash_type");
+            case PREAUTH -> new SigningProfile(StandardCharsets.UTF_8, false, false, true,
+                    "vnp_secure_hash", "vnp_secure_hash_type", "vnp_SecureHash", "vnp_SecureHashType");
         };
     }
 
@@ -48,18 +50,23 @@ public final class CallbackSigner {
             if (isHashField(fieldName, profile.hashFields)) {
                 continue;
             }
+            if (profile.vnpOnly && (fieldName == null || !fieldName.toLowerCase().startsWith("vnp_"))) {
+                continue;
+            }
             String fieldValue = params.get(fieldName);
             if (fieldValue == null || fieldValue.isEmpty()) {
                 continue;
             }
-            String encodedValue = URLEncoder.encode(fieldValue, profile.charset);
+            String valuePart = profile.encodeValues
+                    ? URLEncoder.encode(fieldValue, profile.charset)
+                    : fieldValue;
             if (profile.encodeFieldName) {
                 hashData.append(URLEncoder.encode(fieldName, profile.charset))
                         .append('=')
-                        .append(encodedValue)
+                        .append(valuePart)
                         .append('&');
             } else {
-                hashData.append(fieldName).append('=').append(encodedValue).append('&');
+                hashData.append(fieldName).append('=').append(valuePart).append('&');
             }
         }
         if (hashData.length() > 0) {
@@ -80,6 +87,12 @@ public final class CallbackSigner {
         return false;
     }
 
-    private record SigningProfile(Charset charset, boolean encodeFieldName, String... hashFields) {
+    private record SigningProfile(
+            Charset charset,
+            boolean encodeFieldName,
+            boolean encodeValues,
+            boolean vnpOnly,
+            String... hashFields
+    ) {
     }
 }

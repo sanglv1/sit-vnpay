@@ -1,5 +1,6 @@
 package com.vnpay.sit.testrun.dto;
 
+import com.vnpay.sit.model.PreAuthIpnCommand;
 import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TokenIpnCommand;
 import jakarta.validation.constraints.Min;
@@ -38,4 +39,7 @@ public class TestSuiteForm {
 
     /** Chỉ áp dụng khi partner flow = TOKEN; null → mặc định {@code pay_and_create}. */
     private TokenIpnCommand tokenIpnCommand;
+
+    /** Chỉ áp dụng khi partner flow = PREAUTH; null → mặc định {@code create_token}. */
+    private PreAuthIpnCommand preAuthIpnCommand;
 }

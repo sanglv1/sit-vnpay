@@ -9,6 +9,8 @@ const FLOW_BADGE_CLASS = {
   TOKEN: 'guide-flow-token',
   RECURRING: 'guide-flow-recurring',
   INSTALMENT: 'guide-flow-instalment',
+  QR_DIRECT: 'guide-flow-qr',
+  PREAUTH: 'guide-flow-preauth',
 };
 
 const renderRichText = (text) => {

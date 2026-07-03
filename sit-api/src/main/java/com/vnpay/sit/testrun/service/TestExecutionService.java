@@ -8,6 +8,7 @@ import com.vnpay.sit.core.CallbackParamBuilder;
 import com.vnpay.sit.core.CallbackSigner;
 import com.vnpay.sit.model.CallbackType;
 import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.PreAuthIpnCommand;
 import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.model.TokenIpnCommand;
@@ -239,6 +240,7 @@ public class TestExecutionService {
             }
             runForm.setRecurringIpnCommand(form.getRecurringIpnCommand());
             runForm.setTokenIpnCommand(form.getTokenIpnCommand());
+            runForm.setPreAuthIpnCommand(form.getPreAuthIpnCommand());
             TestRun run = execute(runForm, principal);
             steps.add(TestSuiteStepResponse.from(step++, testCase, run));
         }
@@ -425,7 +427,8 @@ public class TestExecutionService {
                 form.getAmountVnd(),
                 form.getWrongAmountVnd(),
                 resolveRecurringCommand(partner.getFlow(), form.getRecurringIpnCommand()),
-                resolveTokenCommand(partner.getFlow(), form.getTokenIpnCommand())
+                resolveTokenCommand(partner.getFlow(), form.getTokenIpnCommand()),
+                resolvePreAuthCommand(partner.getFlow(), form.getPreAuthIpnCommand())
         );
 
         if (form.getTestCase() == TestCaseType.INVALID_HASH) {
@@ -451,6 +454,13 @@ public class TestExecutionService {
             return null;
         }
         return tokenIpnCommand != null ? tokenIpnCommand : TokenIpnCommand.defaultForIpnSuite();
+    }
+
+    private static PreAuthIpnCommand resolvePreAuthCommand(PaymentFlow flow, PreAuthIpnCommand preAuthIpnCommand) {
+        if (flow != PaymentFlow.PREAUTH) {
+            return null;
+        }
+        return preAuthIpnCommand != null ? preAuthIpnCommand : PreAuthIpnCommand.defaultForIpnSuite();
     }
 
     private boolean evaluateIpn(TestCaseType testCase, CallbackHttpRunner.CallbackResponse response, String actualRsp) {

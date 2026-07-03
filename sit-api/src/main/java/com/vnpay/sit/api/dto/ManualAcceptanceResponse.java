@@ -2,6 +2,8 @@ package com.vnpay.sit.api.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vnpay.sit.manual.InstalmentManualEvidenceSupport;
+import com.vnpay.sit.manual.PreAuthManualEvidenceSupport;
+import com.vnpay.sit.manual.QrDirectManualEvidenceSupport;
 import com.vnpay.sit.manual.RecurringManualEvidenceSupport;
 import com.vnpay.sit.manual.TokenManualEvidenceSupport;
 import com.vnpay.sit.manual.dto.TokenScenarioEvidence;
@@ -29,6 +31,8 @@ public class ManualAcceptanceResponse {
     private final Map<String, TokenScenarioEvidence> tokenScenarioEvidence;
     private final Map<String, TokenScenarioEvidence> recurringScenarioEvidence;
     private final Map<String, TokenScenarioEvidence> instalmentScenarioEvidence;
+    private final Map<String, TokenScenarioEvidence> qrDirectScenarioEvidence;
+    private final Map<String, TokenScenarioEvidence> preauthScenarioEvidence;
     private final LocalDateTime updatedAt;
 
     public static ManualAcceptanceResponse from(ManualAcceptance entity, ObjectMapper objectMapper) {
@@ -59,6 +63,18 @@ public class ManualAcceptanceResponse {
                 .instalmentScenarioEvidence(InstalmentManualEvidenceSupport.toApiMap(
                         InstalmentManualEvidenceSupport.withLegacyPayReturn(
                                 InstalmentManualEvidenceSupport.parse(entity.getInstalmentScenarioEvidence(), objectMapper),
+                                entity
+                        )
+                ))
+                .qrDirectScenarioEvidence(QrDirectManualEvidenceSupport.toApiMap(
+                        QrDirectManualEvidenceSupport.withLegacyQrPay(
+                                QrDirectManualEvidenceSupport.parse(entity.getQrDirectScenarioEvidence(), objectMapper),
+                                entity
+                        )
+                ))
+                .preauthScenarioEvidence(PreAuthManualEvidenceSupport.toApiMap(
+                        PreAuthManualEvidenceSupport.withLegacyCreateToken(
+                                PreAuthManualEvidenceSupport.parse(entity.getPreauthScenarioEvidence(), objectMapper),
                                 entity
                         )
                 ))

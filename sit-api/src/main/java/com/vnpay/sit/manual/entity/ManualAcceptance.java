@@ -64,6 +64,14 @@ public class ManualAcceptance {
     @Column(name = "instalment_scenario_evidence", columnDefinition = "TEXT")
     private String instalmentScenarioEvidence;
 
+    /** JSON map: scenario key → requestLog / responseLog / image (biên bản QR Direct mục 1–6). */
+    @Column(name = "qr_direct_scenario_evidence", columnDefinition = "TEXT")
+    private String qrDirectScenarioEvidence;
+
+    /** JSON map: scenario key → requestLog / responseLog / image (biên bản PreAuth mục 1–10). */
+    @Column(name = "preauth_scenario_evidence", columnDefinition = "TEXT")
+    private String preauthScenarioEvidence;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

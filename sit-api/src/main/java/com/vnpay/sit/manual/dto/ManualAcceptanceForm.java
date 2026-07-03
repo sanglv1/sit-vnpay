@@ -39,4 +39,10 @@ public class ManualAcceptanceForm {
 
     /** Key = {@link com.vnpay.sit.manual.InstalmentManualScenario#name()}. */
     private Map<String, TokenScenarioEvidence> instalmentScenarioEvidence;
+
+    /** Key = {@link com.vnpay.sit.manual.QrDirectManualScenario#name()}. */
+    private Map<String, TokenScenarioEvidence> qrDirectScenarioEvidence;
+
+    /** Key = {@link com.vnpay.sit.manual.PreAuthManualScenario#name()}. */
+    private Map<String, TokenScenarioEvidence> preauthScenarioEvidence;
 }

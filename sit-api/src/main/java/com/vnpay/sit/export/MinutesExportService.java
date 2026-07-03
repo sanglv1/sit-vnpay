@@ -93,6 +93,8 @@ public class MinutesExportService {
             case TOKEN -> "VNPAYGW-Token-SIT-VN.docx";
             case RECURRING -> "VNPAYGW-Recurring-SIT-VN.docx";
             case INSTALMENT -> "VNPAYGW-Installment-SIT-VN.docx";
+            case QR_DIRECT -> "VNPAYGW-QRDirect-SIT-VN.docx";
+            case PREAUTH -> "VNPAYGW-PreAuth-SIT-VN.docx";
         };
         return new ClassPathResource("templates/minutes/" + fileName);
     }

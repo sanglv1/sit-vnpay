@@ -57,6 +57,27 @@ class CallbackSignerTest {
   }
 
   @Test
+  void preAuth_sign_shouldUseSnakeCaseHashFieldWithoutUrlEncoding() {
+    Map<String, String> params = CallbackParamBuilder.build(
+        PaymentFlow.PREAUTH, TestCaseType.SUCCESS, "TMN01", "PA001", 100_000L, null);
+    CallbackSigner.attachHash(params, SECRET, PaymentFlow.PREAUTH);
+    assertThat(params).containsKey("vnp_secure_hash");
+    assertThat(params.get("vnp_secure_hash")).hasSize(128);
+    // Raw signing: same params + key should produce same hash
+    String hash1 = CallbackSigner.sign(params, SECRET, PaymentFlow.PREAUTH);
+    String hash2 = CallbackSigner.sign(params, SECRET, PaymentFlow.PREAUTH);
+    assertThat(hash1).isEqualTo(hash2);
+  }
+
+  @Test
+  void qrDirect_sign_shouldUsePascalCaseHashField() {
+    Map<String, String> params = CallbackParamBuilder.build(
+        PaymentFlow.QR_DIRECT, TestCaseType.SUCCESS, "TMN01", "QR001", 100_000L, null);
+    CallbackSigner.attachHash(params, SECRET, PaymentFlow.QR_DIRECT);
+    assertThat(params).containsKey("vnp_SecureHash");
+  }
+
+  @Test
   void orderNotFound_shouldChangeTxnRef() {
     Map<String, String> params = CallbackParamBuilder.build(
         PaymentFlow.PAY, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG001", 100_000L, null);

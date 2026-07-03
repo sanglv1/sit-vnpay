@@ -44,7 +44,10 @@ const parseOutput = (body) => {
 
 const inputKeysForRun = (run) => {
   const params = parseParams(run?.requestParams);
-  const usesPascalCase = 'vnp_TxnRef' in params || run?.flow === 'PAY' || run?.flow === 'INSTALMENT';
+  const usesPascalCase = 'vnp_TxnRef' in params
+    || run?.flow === 'PAY'
+    || run?.flow === 'INSTALMENT'
+    || run?.flow === 'QR_DIRECT';
   return usesPascalCase ? INPUT_KEYS_PAY : INPUT_KEYS_SNAKE;
 };
 

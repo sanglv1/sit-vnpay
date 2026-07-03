@@ -46,6 +46,16 @@ npm start
 
 UI: http://localhost:8000/sit-ui
 
+Biến dev UI đọc từ `sit-ui/.env.development` (CRA tự nạp khi `npm start`).
+
+**Windows — lỗi `spawn %SystemRoot%\System32\cmd.exe ENOENT`:** biến `COMSPEC` bị set sai (không expand). Sửa tạm trong PowerShell trước khi chạy npm:
+
+```powershell
+$env:COMSPEC = "C:\Windows\System32\cmd.exe"
+```
+
+Sửa vĩnh viễn: *System Properties → Environment Variables → COMSPEC* = `C:\Windows\System32\cmd.exe` (không để `%SystemRoot%\...`).
+
 Trang **Hướng dẫn thực hiện** (menu sidebar): http://localhost:8000/sit-ui/guide
 
 ## API endpoints
@@ -154,33 +164,37 @@ $env:SIT_CORS_ORIGINS = "http://160.250.128.143"
 mvn spring-boot:run
 ```
 
-### Deploy VPS (PostgreSQL native + Nginx + systemd)
+### Deploy VPS (systemd + Nginx + UI SCP)
 
-1. Cài PostgreSQL trên VPS, tạo DB `sit_vnpay_db` và user (vd. `sit_vnpay`).
-2. Copy `sit-api/.env.example` → `sit-api/.env`, set `SPRING_PROFILES_ACTIVE=prod` và `DB_URL=jdbc:postgresql://localhost:5432/sit_vnpay_db`.
-3. API và DB cùng VPS → host luôn là `localhost` (không dùng IP public cho JDBC).
-4. Build API: `mvn -B -DskipTests package` → chạy JAR qua systemd (`EnvironmentFile=.env`).
-5. Build UI: `REACT_APP_BASENAME=/sit-ui`, `REACT_APP_API_URL=http://<VPS_IP>/sit-api`.
-6. Nginx: `client_max_body_size 15m;`, proxy `/sit-api/` → `127.0.0.1:8001`, static `/sit-ui/`.
+Quy trình cập nhật bản mới: **[docs/DEPLOY-VPS-UPDATE.md](docs/DEPLOY-VPS-UPDATE.md)**.
 
-**Reset mật khẩu admin trên VPS** (dùng cùng JDBC + BCrypt như API):
+Tóm tắt:
+
+1. VPS: clone/pull repo tại `/opt/sit-vnpay`, cấu hình `.env`.
+2. API chạy qua **systemd** `sit-api.service` (`mvn package` → `systemctl restart sit-api`).
+3. UI: build trên Windows (`REACT_APP_BASENAME=/sit-ui`, `REACT_APP_API_URL=http://<VPS_IP>/sit-api`) → `scp` lên **`/var/www/sit-vnpay/`** (Nginx phục vụ `/sit-ui/` từ thư mục này).
+4. Nginx: `client_max_body_size 15m;`, proxy `/sit-api/` → `127.0.0.1:8001`, static `/sit-ui/`.
+
+> Docker trong repo (`sit-api/docker-compose.yml`) chỉ dùng **PostgreSQL local** khi dev — không dùng để deploy VPS.
+
+**Reset mật khẩu admin trên VPS:**
 
 ```bash
-cd sit-api
+cd /opt/sit-vnpay/sit-api
 chmod +x scripts/reset-admin.sh
 ./scripts/reset-admin.sh sanglv@vnpay.vn 'YourPassword'
 ```
 
 ## Luồng hỗ trợ
 
-PAY, TOKEN, RECURRING, INSTALMENT
+PAY, TOKEN, RECURRING, INSTALMENT, QR_DIRECT (Merchant Hosted QR), PREAUTH (Ủy quyền pa-svc)
 
 ## Coverage gate backend (lộ trình)
 
 `sit-api` dùng JaCoCo check tại phase `verify` với ngưỡng line coverage cấu hình theo property:
 
-- mặc định (an toàn CI hiện tại): `0.10`
-- sprint gate: `0.30`
+- mặc định CI hiện tại: `0.30`
+- sprint gate: `0.35`
 - target gate: `0.40`
 
 Chạy theo từng mức:
@@ -206,7 +220,7 @@ mvn verify -Djacoco.line.coverage.minimum=0.35
 
 ## Hướng dẫn thực hiện
 
-Quy trình kiểm thử SIT gồm **6 bước**. Cả 4 luồng (PAY, TOKEN, RECURRING, INSTALMENT) đều đi theo cùng quy trình; khác nhau ở cấu hình đối tác và bộ tham số callback mà hệ thống tự sinh.
+Quy trình kiểm thử SIT gồm **6 bước**. Cả 6 luồng đều đi theo cùng quy trình; khác nhau ở cấu hình đối tác và bộ tham số callback mà hệ thống tự sinh.
 
 ```
 Chuẩn bị merchant → Tạo đối tác → Tạo phiên → Nghiệm thu IPN (tự động)
@@ -237,7 +251,7 @@ Vào **Đối tác → Thêm đối tác**, khai báo:
 | Trường | Mô tả |
 |--------|-------|
 | Tên đối tác | Tên merchant / dự án |
-| Luồng | `PAY`, `TOKEN`, `RECURRING` hoặc `INSTALMENT` |
+| Luồng | `PAY`, `TOKEN`, `RECURRING`, `INSTALMENT`, `QR_DIRECT` hoặc `PREAUTH` |
 | TMN Code | Mã terminal merchant |
 | Secret Key | Khóa bí mật ký HMAC |
 | Return URL | URL redirect sau thanh toán |
@@ -251,6 +265,8 @@ Vào **Đối tác → Thêm đối tác**, khai báo:
 | TOKEN | snake_case: `vnp_command` = `pay_and_create` (mặc định suite IPN), `token_create` (tạo Token), `token_pay` (thanh toán bằng Token), hoặc `token_remove` (xóa Token); `vnp_app_user_id`, `vnp_txn_desc`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_card_number` (tùy chọn) khi GD thành công |
 | RECURRING | snake_case: `vnp_command` = `recurring` (xác thực thẻ, mặc định suite IPN), `pay_n_recurring` (thanh toán định kỳ), hoặc `update_token` (cập nhật token); `vnp_order_info`, `vnp_app_user_id`, `vnp_curr_code`, `vnp_response_code`, `vnp_transaction_status`, `vnp_secure_hash`; thêm `vnp_token`, `vnp_token_exp_date`, `vnp_card_number`, `vnp_bank_code`, `vnp_bank_tran_no`, `vnp_card_type` khi GD thành công |
 | INSTALMENT | PascalCase (tương tự PAY): `vnp_TmnCode`, `vnp_TxnRef`, `vnp_Amount`, `vnp_OrderInfo`, `vnp_BankCode`, `vnp_ResponseCode`, `vnp_TransactionStatus`, `vnp_SecureHash` — ký UTF-8 |
+| QR_DIRECT | PascalCase (tương tự PAY): genqr IPN — `vnp_BankCode` = `VNPAYQR`, ký UTF-8 |
+| PREAUTH | snake_case (pa-svc): `vnp_command` = `create_token` hoặc `auth_w_token`; `vnp_authorize_id`, `vnp_token` khi thành công; `vnp_secure_hash` — ký **raw value** (không URL-encode) |
 
 ### Bước 3 — Tạo phiên kiểm thử (`/sessions/new`)
 
@@ -339,6 +355,8 @@ Bốn file template nằm trong repo tại `sit-api/src/main/resources/templates
 | `VNPAYGW-Token-SIT-VN.docx` | TOKEN |
 | `VNPAYGW-Recurring-SIT-VN.docx` | RECURRING |
 | `VNPAYGW-Installment-SIT-VN.docx` | INSTALMENT |
+| `VNPAYGW-QRDirect-SIT-VN.docx` | QR_DIRECT |
+| `VNPAYGW-PreAuth-SIT-VN.docx` | PREAUTH |
 
 API chọn template theo `PaymentFlow` của Terminal; file tải về đặt tên `VNPAYGW-{tmnCode}-SIT.docx`.
 

@@ -16,7 +16,7 @@
     "redux-thunk": "^2.4.2"
   },
   "scripts": {
-    "start": "env-cmd -f .env.dev react-scripts start",
+    "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "test:ci": "react-scripts test --watchAll=false --coverage",
@@ -48,14 +48,19 @@
   },
   "jest": {
     "collectCoverageFrom": [
-      "src/App.js"
+      "src/**/*.{js,jsx}",
+      "!src/index.js",
+      "!src/setupTests.js",
+      "!src/**/__tests__/**",
+      "!src/**/*.test.{js,jsx}",
+      "!src/**/*.smoke.test.{js,jsx}"
     ],
     "coverageThreshold": {
       "global": {
-        "branches": 50,
-        "functions": 100,
-        "lines": 90,
-        "statements": 90
+        "branches": 25,
+        "functions": 30,
+        "lines": 35,
+        "statements": 35
       }
     }
   }

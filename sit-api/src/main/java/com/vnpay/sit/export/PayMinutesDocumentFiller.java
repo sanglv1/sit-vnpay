@@ -58,7 +58,7 @@ final class PayMinutesDocumentFiller {
             } else if (text.startsWith("Mã định danh kết nối:")) {
                 updated = "Mã định danh kết nối: " + ctx.getPartner().getTmnCode();
             } else if (text.startsWith("Dịch vụ kết nối:")) {
-                updated = "Dịch vụ kết nối: PAY";
+                updated = "Dịch vụ kết nối: " + serviceLabel(ctx);
             } else if (text.startsWith("Môi trường kiểm tra:")) {
                 updated = "Môi trường kiểm tra: SANDBOX";
             } else if (text.startsWith("Phiên bản tích hợp:")) {
@@ -434,6 +434,12 @@ final class PayMinutesDocumentFiller {
             return ctx.getTestLink().trim();
         }
         return blank(ctx.getPartner().getIpnUrl());
+    }
+
+    private String serviceLabel(MinutesExportContext ctx) {
+        return ctx.flow() == com.vnpay.sit.model.PaymentFlow.QR_DIRECT
+                ? "MERCHANT HOSTED QR (QR DIRECT)"
+                : "PAY";
     }
 
     private String integrationVersion(MinutesExportContext ctx) {

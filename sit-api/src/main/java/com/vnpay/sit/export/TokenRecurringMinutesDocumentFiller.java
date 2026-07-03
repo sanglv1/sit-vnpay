@@ -548,7 +548,10 @@ final class TokenRecurringMinutesDocumentFiller {
     }
 
     private FlowProfile profile(PaymentFlow flow) {
-        return flow == PaymentFlow.RECURRING ? FlowProfile.RECURRING : FlowProfile.TOKEN;
+        if (flow == PaymentFlow.RECURRING) {
+            return FlowProfile.RECURRING;
+        }
+        return FlowProfile.TOKEN;
     }
 
     private enum FlowProfile {
@@ -708,7 +711,7 @@ final class TokenRecurringMinutesDocumentFiller {
         if (ctx.getIntegrationVersion() != null && !ctx.getIntegrationVersion().isBlank()) {
             return ctx.getIntegrationVersion().trim();
         }
-        return ctx.flow() == PaymentFlow.TOKEN ? "2.1.0" : "2.1.1";
+        return ctx.flow() == PaymentFlow.TOKEN || ctx.flow() == PaymentFlow.PREAUTH ? "2.1.0" : "2.1.1";
     }
 
     private String blank(String value) {

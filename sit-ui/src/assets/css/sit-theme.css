@@ -1391,6 +1391,17 @@ body.aside-minimize .sit-wrapper { margin-left: 70px; }
     font-weight: 600;
     color: var(--vnpay-text);
 }
+.order-input-footnote {
+    font-size: 12px;
+    color: var(--vnpay-muted);
+    margin-top: 12px;
+    line-height: 1.5;
+}
+.auto-workflow-steps {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--vnpay-text);
+}
 .order-prep-muted {
     font-size: 12px;
     color: var(--vnpay-muted);
@@ -2224,6 +2235,8 @@ body.aside-minimize .sit-wrapper { margin-left: 70px; }
 .guide-flow-token { background: #ede8f8; color: #4a2d7a; }
 .guide-flow-recurring { background: #e8f6ee; color: #1a5c38; }
 .guide-flow-instalment { background: #fdf0e6; color: #7a3d0d; }
+.guide-flow-qr { background: #e6f4f8; color: #0d5c6e; }
+.guide-flow-preauth { background: #f3e8fd; color: #5c2d7a; }
 .guide-mode-badge {
     display: inline-block;
     font-size: 11px;

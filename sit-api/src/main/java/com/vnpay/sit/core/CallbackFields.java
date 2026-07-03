@@ -8,7 +8,7 @@ public final class CallbackFields {
     }
 
     public static boolean usesPascalCase(PaymentFlow flow) {
-        return flow == PaymentFlow.PAY || flow == PaymentFlow.INSTALMENT;
+        return flow == PaymentFlow.PAY || flow == PaymentFlow.INSTALMENT || flow == PaymentFlow.QR_DIRECT;
     }
 
     public static String txnRefKey(PaymentFlow flow) {

@@ -130,6 +130,7 @@ class TestSessionApiContractTest {
                 .andExpect(jsonPath("$.data.testCases").isArray())
                 .andExpect(jsonPath("$.data.testCases[0].value").exists())
                 .andExpect(jsonPath("$.data.recurringIpnCommands").isArray())
-                .andExpect(jsonPath("$.data.tokenIpnCommands").isArray());
+                .andExpect(jsonPath("$.data.tokenIpnCommands").isArray())
+                .andExpect(jsonPath("$.data.preAuthIpnCommands").isArray());
     }
 }

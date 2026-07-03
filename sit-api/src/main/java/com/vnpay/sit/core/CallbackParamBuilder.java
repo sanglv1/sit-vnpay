@@ -1,6 +1,7 @@
 package com.vnpay.sit.core;
 
 import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.PreAuthIpnCommand;
 import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.model.TokenIpnCommand;
@@ -53,12 +54,27 @@ public final class CallbackParamBuilder {
             RecurringIpnCommand recurringCommand,
             TokenIpnCommand tokenCommand
     ) {
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, tokenCommand, null);
+    }
+
+    public static Map<String, String> build(
+            PaymentFlow flow,
+            TestCaseType testCase,
+            String tmnCode,
+            String txnRef,
+            long amountVnd,
+            Long wrongAmountVnd,
+            RecurringIpnCommand recurringCommand,
+            TokenIpnCommand tokenCommand,
+            PreAuthIpnCommand preAuthCommand
+    ) {
         Map<String, String> params = new LinkedHashMap<>();
         String now = formatPayDate();
         long amountMinor = amountVnd * 100;
 
         switch (flow) {
             case PAY -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "NCB", "ATM");
+            case QR_DIRECT -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "VNPAYQR", null);
             case INSTALMENT -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "VISA", null);
             case TOKEN -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
@@ -67,6 +83,10 @@ public final class CallbackParamBuilder {
             case RECURRING -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
                 putRecurringIpnFields(params, txnRef, testCase, recurringCommand);
+            }
+            case PREAUTH -> {
+                putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
+                putPreAuthIpnFields(params, txnRef, testCase, preAuthCommand);
             }
         }
 
@@ -141,6 +161,27 @@ public final class CallbackParamBuilder {
             if (command != TokenIpnCommand.TOKEN_REMOVE) {
                 params.put("vnp_card_number", "411111****1111");
             }
+        }
+    }
+
+    private static void putPreAuthIpnFields(
+            Map<String, String> params,
+            String txnRef,
+            TestCaseType testCase,
+            PreAuthIpnCommand preAuthCommand
+    ) {
+        PreAuthIpnCommand command = preAuthCommand != null
+                ? preAuthCommand
+                : PreAuthIpnCommand.defaultForIpnSuite();
+        params.put("vnp_command", command.getCommandValue());
+        params.put("vnp_order_info", "SIT test " + txnRef);
+        params.put("vnp_curr_code", "VND");
+        if (testCase == TestCaseType.SUCCESS) {
+            params.put("vnp_authorize_id", "SIT_AUTH_" + txnRef);
+            params.put("vnp_token", "SIT_TOKEN_" + txnRef);
+            params.put("vnp_bank_code", "VISA");
+            params.put("vnp_card_type", "02");
+            params.put("vnp_bank_tran_no", String.valueOf(System.currentTimeMillis()) + "001");
         }
     }
 

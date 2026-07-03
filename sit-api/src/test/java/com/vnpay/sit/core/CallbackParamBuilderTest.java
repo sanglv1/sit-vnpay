@@ -1,5 +1,6 @@
 package com.vnpay.sit.core;
 
+import com.vnpay.sit.model.PreAuthIpnCommand;
 import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
@@ -258,6 +259,51 @@ class CallbackParamBuilderTest {
     }
 
     @Test
+    void qrDirect_success_shouldUsePascalCaseLikePay() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.QR_DIRECT, TestCaseType.SUCCESS, "TMNQR", "QR001", 150_000L, null);
+
+        assertThat(params)
+                .containsEntry("vnp_TmnCode", "TMNQR")
+                .containsEntry("vnp_TxnRef", "QR001")
+                .containsEntry("vnp_Amount", "15000000")
+                .containsEntry("vnp_BankCode", "VNPAYQR")
+                .containsEntry("vnp_ResponseCode", "00");
+        assertThat(params).doesNotContainKey("vnp_CardType");
+    }
+
+    @Test
+    void preAuth_success_defaultCommand_shouldMatchCreateTokenIpn() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.PREAUTH, TestCaseType.SUCCESS, "TMNPA", "PA001", 200_000L, null);
+
+        assertThat(params)
+                .containsEntry("vnp_tmn_code", "TMNPA")
+                .containsEntry("vnp_txn_ref", "PA001")
+                .containsEntry("vnp_amount", "20000000")
+                .containsEntry("vnp_command", "create_token")
+                .containsEntry("vnp_authorize_id", "SIT_AUTH_PA001")
+                .containsEntry("vnp_token", "SIT_TOKEN_PA001")
+                .containsEntry("vnp_order_info", "SIT test PA001");
+    }
+
+    @Test
+    void preAuth_authWToken_success_shouldUseExplicitCommand() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.PREAUTH,
+                TestCaseType.SUCCESS,
+                "TMNPA",
+                "PA002",
+                200_000L,
+                null,
+                null,
+                null,
+                PreAuthIpnCommand.AUTH_W_TOKEN);
+
+        assertThat(params).containsEntry("vnp_command", "auth_w_token");
+    }
+
+    @Test
     void orderNotFound_shouldReplaceTxnRefWithGeneratedValue() {
         Map<String, String> payParams = CallbackParamBuilder.build(
                 PaymentFlow.PAY, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG001", 100_000L, null);
@@ -272,6 +318,12 @@ class CallbackParamBuilderTest {
         assertThat(tokenParams.get("vnp_txn_ref")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG002");
         assertThat(recurringParams.get("vnp_txn_ref")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG004");
         assertThat(instalmentParams.get("vnp_TxnRef")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG003");
+        Map<String, String> qrParams = CallbackParamBuilder.build(
+                PaymentFlow.QR_DIRECT, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG005", 100_000L, null);
+        Map<String, String> preAuthParams = CallbackParamBuilder.build(
+                PaymentFlow.PREAUTH, TestCaseType.ORDER_NOT_FOUND, "TMN01", "ORIG006", 100_000L, null);
+        assertThat(qrParams.get("vnp_TxnRef")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG005");
+        assertThat(preAuthParams.get("vnp_txn_ref")).startsWith("SIT_NOTFOUND_").doesNotContain("ORIG006");
     }
 
     @Test

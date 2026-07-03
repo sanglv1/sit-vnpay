@@ -117,6 +117,10 @@ class TestRunApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.testCases").isArray())
                 .andExpect(jsonPath("$.data.testCases[0]['value']").value("INVALID_HASH"))
                 .andExpect(jsonPath("$.data.callbackTypes[0]['value']").value("RETURN"))
+                .andExpect(jsonPath("$.data.paymentFlows[?(@.value=='QR_DIRECT')]").isNotEmpty())
+                .andExpect(jsonPath("$.data.paymentFlows[?(@.value=='PREAUTH')]").isNotEmpty())
+                .andExpect(jsonPath("$.data.preAuthIpnCommands[?(@.value=='CREATE_TOKEN')]").isNotEmpty())
+                .andExpect(jsonPath("$.data.preAuthIpnCommands[?(@.value=='AUTH_W_TOKEN')]").isNotEmpty())
                 .andExpect(jsonPath("$.data.defaultTxnRef").exists());
     }
 

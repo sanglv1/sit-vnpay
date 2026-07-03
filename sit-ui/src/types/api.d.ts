@@ -3,11 +3,12 @@
  * JSON dates are ISO-8601 strings.
  */
 
-export type PaymentFlow = 'PAY' | 'TOKEN' | 'RECURRING' | 'INSTALMENT';
+export type PaymentFlow = 'PAY' | 'TOKEN' | 'RECURRING' | 'INSTALMENT' | 'QR_DIRECT' | 'PREAUTH';
 export type CallbackType = 'RETURN' | 'IPN';
 export type UserRole = 'ADMIN' | 'MERCHANT_QC';
 export type RecurringIpnCommand = 'RECURRING' | 'PAY_N_RECURRING' | 'UPDATE_TOKEN';
 export type TokenIpnCommand = 'TOKEN_CREATE' | 'PAY_AND_CREATE' | 'TOKEN_PAY' | 'TOKEN_REMOVE';
+export type PreAuthIpnCommand = 'CREATE_TOKEN' | 'AUTH_W_TOKEN';
 export type TestCaseType =
   | 'UNKNOWN_ERROR'
   | 'INVALID_HASH'
@@ -102,6 +103,7 @@ export interface SessionWorkspaceResponse {
   testCases: EnumOption[];
   recurringIpnCommands: EnumOption[];
   tokenIpnCommands: EnumOption[];
+  preAuthIpnCommands: EnumOption[];
 }
 
 export interface EnumOption {
@@ -119,6 +121,7 @@ export interface TestMetadataResponse {
   paymentFlows: EnumOption[];
   recurringIpnCommands: EnumOption[];
   tokenIpnCommands: EnumOption[];
+  preAuthIpnCommands: EnumOption[];
   defaultTxnRef: string;
 }
 
@@ -190,6 +193,8 @@ export interface ManualAcceptanceResponse {
   tokenScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
   recurringScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
   instalmentScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
+  qrDirectScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
+  preauthScenarioEvidence: Record<string, TokenScenarioEvidence> | null;
   updatedAt: string;
 }
 
@@ -250,6 +255,9 @@ export interface TestRunRequest {
   txnRef: string;
   amountVnd: number;
   wrongAmountVnd?: number;
+  recurringIpnCommand?: RecurringIpnCommand;
+  tokenIpnCommand?: TokenIpnCommand;
+  preAuthIpnCommand?: PreAuthIpnCommand;
 }
 
 export interface TestSuiteRequest {
@@ -260,6 +268,9 @@ export interface TestSuiteRequest {
   failedTxnRef: string;
   failedAmountVnd?: number | null;
   wrongAmountVnd?: number;
+  recurringIpnCommand?: RecurringIpnCommand;
+  tokenIpnCommand?: TokenIpnCommand;
+  preAuthIpnCommand?: PreAuthIpnCommand;
 }
 
 export interface PrepareMerchantOrderRequest {
@@ -295,4 +306,6 @@ export interface ManualAcceptanceRequest {
   tokenScenarioEvidence?: Record<string, TokenScenarioEvidence>;
   recurringScenarioEvidence?: Record<string, TokenScenarioEvidence>;
   instalmentScenarioEvidence?: Record<string, TokenScenarioEvidence>;
+  qrDirectScenarioEvidence?: Record<string, TokenScenarioEvidence>;
+  preauthScenarioEvidence?: Record<string, TokenScenarioEvidence>;
 }

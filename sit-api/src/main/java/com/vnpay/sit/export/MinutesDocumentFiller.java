@@ -10,6 +10,8 @@ final class MinutesDocumentFiller {
     private final PayMinutesDocumentFiller payFiller;
     private final InstalmentMinutesDocumentFiller instalmentFiller;
     private final TokenRecurringMinutesDocumentFiller tokenRecurringFiller;
+    private final QrDirectMinutesDocumentFiller qrDirectFiller;
+    private final PreAuthMinutesDocumentFiller preAuthFiller;
     private final MinutesViewModelMapper viewModelMapper;
 
     MinutesDocumentFiller(ObjectMapper objectMapper, MinutesViewModelMapper viewModelMapper) {
@@ -17,14 +19,18 @@ final class MinutesDocumentFiller {
         this.payFiller = new PayMinutesDocumentFiller(objectMapper, viewModelMapper);
         this.instalmentFiller = new InstalmentMinutesDocumentFiller(objectMapper, viewModelMapper);
         this.tokenRecurringFiller = new TokenRecurringMinutesDocumentFiller(objectMapper, viewModelMapper);
+        this.qrDirectFiller = new QrDirectMinutesDocumentFiller(objectMapper, viewModelMapper);
+        this.preAuthFiller = new PreAuthMinutesDocumentFiller(objectMapper, viewModelMapper);
     }
 
     void fill(XWPFDocument document, MinutesExportContext ctx) {
         applyTemplateTokens(document, viewModelMapper.map(ctx));
         switch (ctx.flow()) {
             case PAY -> payFiller.fill(document, ctx);
+            case QR_DIRECT -> qrDirectFiller.fill(document, ctx);
             case INSTALMENT -> instalmentFiller.fill(document, ctx);
             case TOKEN, RECURRING -> tokenRecurringFiller.fill(document, ctx);
+            case PREAUTH -> preAuthFiller.fill(document, ctx);
         }
     }
 

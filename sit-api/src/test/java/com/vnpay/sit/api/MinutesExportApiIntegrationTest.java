@@ -414,6 +414,115 @@ class MinutesExportApiIntegrationTest {
         }
     }
 
+    @Test
+    void exportMinutes_qrDirect_shouldRenderIpnFieldsIntoDocx() throws Exception {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setName("Merchant QR Direct");
+        partner.setFlow(PaymentFlow.QR_DIRECT);
+        partner.setTmnCode("TMNQR");
+        partner.setSecretKey("secret");
+        partner.setReturnUrl("https://merchant.test/return");
+        partner.setIpnUrl("https://merchant.test/ipn");
+        partner.setCreatedByEmail("owner@merchant.test");
+        partner = partnerConfigRepository.save(partner);
+
+        TestSession session = createSession(partner);
+        saveSnakeCaseRun(session, partner, PaymentFlow.QR_DIRECT, TestCaseType.SUCCESS, true, "QR_OK", "00",
+                qrDirectParams("QR_OK", "TMNQR", "00", "00", "15000000"),
+                "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.QR_DIRECT, TestCaseType.FAILED, false, "QR_FAIL", "00",
+                qrDirectParams("QR_FAIL", "TMNQR", "24", "02", "15000000"),
+                "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.QR_DIRECT, TestCaseType.ORDER_NOT_FOUND, true, "QR_MISSING", "01",
+                qrDirectParams("QR_MISSING", "TMNQR", null, null, null),
+                "{\"RspCode\":\"01\",\"Message\":\"Order not found\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.QR_DIRECT, TestCaseType.ORDER_ALREADY_CONFIRMED, true, "QR_OK", "02",
+                qrDirectParams("QR_OK", "TMNQR", null, null, null),
+                "{\"RspCode\":\"02\",\"Message\":\"Order already confirmed\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.QR_DIRECT, TestCaseType.WRONG_AMOUNT, false, "QR_OK", "04",
+                qrDirectParams("QR_OK", "TMNQR", null, null, "999"),
+                "{\"RspCode\":\"04\",\"Message\":\"Invalid amount\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.QR_DIRECT, TestCaseType.INVALID_HASH, true, "QR_OK", "97",
+                qrDirectParams("QR_OK", "TMNQR", null, null, null),
+                "{\"RspCode\":\"97\",\"Message\":\"Invalid signature\"}");
+        saveManualAcceptance(session, partner, true, true, true, "QR_RETURN_OK", "QR_RETURN_FAIL",
+                TINY_PNG_DATA_URL, TINY_PNG_DATA_URL);
+
+        byte[] content = exportMinutes(session, "2.1.0");
+        String allText = readDocText(content);
+
+        assertThat(allText).contains("TMNQR");
+        assertThat(allText).contains("Merchant QR Direct");
+        assertThat(allText).contains("QR_OK");
+        assertThat(allText).contains("vnp_TxnRef: QR_OK");
+        assertThat(allText).contains("rspCode: \"00\"");
+        assertThat(allText).contains("rspCode: \"01\"");
+        assertThat(allText).contains("Message: \"Order not found\"");
+        assertThat(allText).contains("Đạt");
+        assertThat(allText).contains("Không đạt");
+        assertThat(allText).contains("Đã xử lý");
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(content))) {
+            assertThat(doc.getAllPictures()).isNotEmpty();
+            assertThat(DocxLayoutPolisher.countMerchantHeaderBlankLines(doc)).isZero();
+        }
+    }
+
+    @Test
+    void exportMinutes_preAuth_shouldRenderIpnFieldsIntoDocx() throws Exception {
+        PartnerConfig partner = new PartnerConfig();
+        partner.setName("Merchant PreAuth");
+        partner.setFlow(PaymentFlow.PREAUTH);
+        partner.setTmnCode("TMNPA");
+        partner.setSecretKey("secret");
+        partner.setReturnUrl("https://merchant.test/return");
+        partner.setIpnUrl("https://merchant.test/ipn");
+        partner.setCreatedByEmail("owner@merchant.test");
+        partner = partnerConfigRepository.save(partner);
+
+        TestSession session = createSession(partner);
+        saveSnakeCaseRun(session, partner, PaymentFlow.PREAUTH, TestCaseType.SUCCESS, true, "PA_OK", "00",
+                preAuthParams("PA_OK", "TMNPA", "create_token", "00", "00", "20000000"),
+                "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.PREAUTH, TestCaseType.FAILED, false, "PA_FAIL", "00",
+                preAuthParams("PA_FAIL", "TMNPA", "auth_w_token", "24", "02", "20000000"),
+                "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.PREAUTH, TestCaseType.ORDER_NOT_FOUND, true, "PA_MISSING", "01",
+                preAuthParams("PA_MISSING", "TMNPA", "create_token", null, null, null),
+                "{\"RspCode\":\"01\",\"Message\":\"Order not found\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.PREAUTH, TestCaseType.ORDER_ALREADY_CONFIRMED, true, "PA_OK", "02",
+                preAuthParams("PA_OK", "TMNPA", "create_token", null, null, null),
+                "{\"RspCode\":\"02\",\"Message\":\"Order already confirmed\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.PREAUTH, TestCaseType.WRONG_AMOUNT, false, "PA_OK", "04",
+                preAuthParams("PA_OK", "TMNPA", "create_token", null, null, "999"),
+                "{\"RspCode\":\"04\",\"Message\":\"Invalid amount\"}");
+        saveSnakeCaseRun(session, partner, PaymentFlow.PREAUTH, TestCaseType.INVALID_HASH, true, "PA_OK", "97",
+                preAuthParams("PA_OK", "TMNPA", "create_token", null, null, null),
+                "{\"RspCode\":\"97\",\"Message\":\"Invalid signature\"}");
+        saveManualAcceptance(session, partner, true, true, false, "PA_RETURN_OK", "PA_RETURN_FAIL",
+                TINY_PNG_DATA_URL, TINY_PNG_DATA_URL);
+
+        byte[] content = exportMinutes(session, "2.1.0");
+        String allText = readDocText(content);
+
+        assertThat(allText).contains("TMNPA");
+        assertThat(allText).contains("Merchant PreAuth");
+        assertThat(allText).contains("PA_OK");
+        assertThat(allText).contains("vnp_txn_ref (order.orderReference): PA_OK");
+        assertThat(allText).contains("vnp_command: create_token");
+        assertThat(allText).contains("rspCode: \"00\"");
+        assertThat(allText).contains("rspCode: \"01\"");
+        assertThat(allText).contains("Message: \"Order not found\"");
+        assertThat(allText).contains("Đạt");
+        assertThat(allText).contains("Không đạt");
+        assertThat(allText).contains("Chưa xử lý");
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(content))) {
+            assertThat(doc.getAllPictures()).isNotEmpty();
+            assertThat(DocxLayoutPolisher.countMerchantHeaderBlankLines(doc)).isZero();
+        }
+    }
+
     private TestSession createSession(PartnerConfig partner) {
         TestSession session = new TestSession();
         session.setPartnerId(partner.getId());
@@ -548,6 +657,57 @@ class MinutesExportApiIntegrationTest {
             String transactionStatus,
             String amount,
             String command
+    ) {
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"vnp_txn_ref\":\"").append(txnRef).append("\"");
+        sb.append(",\"vnp_tmn_code\":\"").append(tmnCode).append("\"");
+        sb.append(",\"vnp_command\":\"").append(command).append("\"");
+        sb.append(",\"vnp_order_info\":\"SIT test ").append(txnRef).append("\"");
+        sb.append(",\"vnp_curr_code\":\"VND\"");
+        if (responseCode != null) {
+            sb.append(",\"vnp_response_code\":\"").append(responseCode).append("\"");
+        }
+        if (transactionStatus != null) {
+            sb.append(",\"vnp_transaction_status\":\"").append(transactionStatus).append("\"");
+        }
+        if (amount != null) {
+            sb.append(",\"vnp_amount\":\"").append(amount).append("\"");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String qrDirectParams(
+            String txnRef,
+            String tmnCode,
+            String responseCode,
+            String transactionStatus,
+            String amount
+    ) {
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"vnp_TxnRef\":\"").append(txnRef).append("\"");
+        sb.append(",\"vnp_TmnCode\":\"").append(tmnCode).append("\"");
+        sb.append(",\"vnp_BankCode\":\"VNPAYQR\"");
+        if (responseCode != null) {
+            sb.append(",\"vnp_ResponseCode\":\"").append(responseCode).append("\"");
+        }
+        if (transactionStatus != null) {
+            sb.append(",\"vnp_TransactionStatus\":\"").append(transactionStatus).append("\"");
+        }
+        if (amount != null) {
+            sb.append(",\"vnp_Amount\":\"").append(amount).append("\"");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String preAuthParams(
+            String txnRef,
+            String tmnCode,
+            String command,
+            String responseCode,
+            String transactionStatus,
+            String amount
     ) {
         StringBuilder sb = new StringBuilder("{");
         sb.append("\"vnp_txn_ref\":\"").append(txnRef).append("\"");

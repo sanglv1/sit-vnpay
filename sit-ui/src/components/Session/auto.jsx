@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import SessionHeader from './SessionHeader';
@@ -17,13 +17,25 @@ import { useI18n } from '../../i18n/useI18n';
 
 const SUCCESS_ORDER_CASES = new Set(['WRONG_AMOUNT', 'SUCCESS']);
 
-const buildIpnLogic = (t) => [
-  { step: 1, check: t('sessions.ipnLogicStep1'), param: 'vnp_SecureHash', rsp: '97' },
-  { step: 2, check: t('sessions.ipnLogicStep2'), param: 'vnp_TxnRef', rsp: '01' },
-  { step: 3, check: t('sessions.ipnLogicStep3'), param: 'vnp_Amount', rsp: '04' },
-  { step: 4, check: t('sessions.ipnLogicStep4'), param: 'status', rsp: '02' },
-  { step: 5, check: t('sessions.ipnLogicStep5'), param: 'vnp_ResponseCode / vnp_TransactionStatus', rsp: '00' },
-];
+const buildIpnLogic = (t, flow) => {
+  const usesSnakeCase = flow === 'TOKEN' || flow === 'RECURRING' || flow === 'PREAUTH';
+  if (usesSnakeCase) {
+    return [
+      { step: 1, check: t('sessions.ipnLogicStep1'), param: 'vnp_secure_hash', rsp: '97' },
+      { step: 2, check: t('sessions.ipnLogicStep2'), param: 'vnp_txn_ref', rsp: '01' },
+      { step: 3, check: t('sessions.ipnLogicStep3'), param: 'vnp_amount', rsp: '04' },
+      { step: 4, check: t('sessions.ipnLogicStep4'), param: 'status', rsp: '02' },
+      { step: 5, check: t('sessions.ipnLogicStep5'), param: 'vnp_response_code / vnp_transaction_status', rsp: '00' },
+    ];
+  }
+  return [
+    { step: 1, check: t('sessions.ipnLogicStep1'), param: 'vnp_SecureHash', rsp: '97' },
+    { step: 2, check: t('sessions.ipnLogicStep2'), param: 'vnp_TxnRef', rsp: '01' },
+    { step: 3, check: t('sessions.ipnLogicStep3'), param: 'vnp_Amount', rsp: '04' },
+    { step: 4, check: t('sessions.ipnLogicStep4'), param: 'status', rsp: '02' },
+    { step: 5, check: t('sessions.ipnLogicStep5'), param: 'vnp_ResponseCode / vnp_TransactionStatus', rsp: '00' },
+  ];
+};
 
 const buildRspCodes = (t) => [
   ['00', t('sessions.rspCode00')],
@@ -109,19 +121,6 @@ const toTestInputPayload = (values) => ({
   wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
 });
 
-const TOKEN_ORDER_HINT_KEYS = {
-  PAY_AND_CREATE: 'sessions.orderHintTokenPayAndCreate',
-  TOKEN_CREATE: 'sessions.orderHintTokenCreate',
-  TOKEN_PAY: 'sessions.orderHintTokenPay',
-  TOKEN_REMOVE: 'sessions.orderHintTokenRemove',
-};
-
-const RECURRING_ORDER_HINT_KEYS = {
-  RECURRING: 'sessions.orderHintRecurringAuth',
-  PAY_N_RECURRING: 'sessions.orderHintRecurringCharge',
-  UPDATE_TOKEN: 'sessions.orderHintRecurringUpdate',
-};
-
 const buildWorkflowSteps = (flow, t) => {
   if (flow === 'TOKEN') {
     return [
@@ -144,18 +143,25 @@ const buildWorkflowSteps = (flow, t) => {
       t('sessions.autoWorkflowInstalment3'),
     ];
   }
+  if (flow === 'QR_DIRECT') {
+    return [
+      t('sessions.autoWorkflowQrDirect1'),
+      t('sessions.autoWorkflowQrDirect2'),
+      t('sessions.autoWorkflowQrDirect3'),
+    ];
+  }
+  if (flow === 'PREAUTH') {
+    return [
+      t('sessions.autoWorkflowPreAuth1'),
+      t('sessions.autoWorkflowPreAuth2'),
+      t('sessions.autoWorkflowPreAuth3'),
+    ];
+  }
   return [
     t('sessions.autoWorkflowPay1'),
     t('sessions.autoWorkflowPay2'),
     t('sessions.autoWorkflowPay3'),
   ];
-};
-
-const orderDescKey = (flow) => {
-  if (flow === 'TOKEN') return 'sessions.orderDescToken';
-  if (flow === 'RECURRING') return 'sessions.orderDescRecurring';
-  if (flow === 'INSTALMENT') return 'sessions.orderDescInstalment';
-  return 'sessions.orderDescPay';
 };
 
 const SessionAuto = () => {
@@ -164,11 +170,10 @@ const SessionAuto = () => {
   const dispatch = useDispatch();
   const { t } = useI18n();
   const [runningCase, setRunningCase] = useState(null);
-  const { register, handleSubmit, getValues, reset, setValue, control } = useForm();
+  const { register, handleSubmit, getValues, reset, setValue } = useForm();
   const initializedSessionId = useRef(null);
   const formReadyRef = useRef(false);
 
-  const ipnLogic = useMemo(() => buildIpnLogic(t), [t]);
   const rspCodes = useMemo(() => buildRspCodes(t), [t]);
 
   const { data: workspace } = useSessionWorkspaceQuery(sessionId);
@@ -178,29 +183,22 @@ const SessionAuto = () => {
     partnerFlow: workspace.partnerFlow,
     recurringIpnCommands: workspace.recurringIpnCommands ?? [],
     tokenIpnCommands: workspace.tokenIpnCommands ?? [],
+    preAuthIpnCommands: workspace.preAuthIpnCommands ?? [],
   } : null;
 
-  const tokenIpnCommand = useWatch({ control, name: 'tokenIpnCommand' });
-  const recurringIpnCommand = useWatch({ control, name: 'recurringIpnCommand' });
+  const ipnLogic = useMemo(
+    () => buildIpnLogic(t, metadata?.partnerFlow),
+    [t, metadata?.partnerFlow],
+  );
 
   const workflowSteps = useMemo(
     () => buildWorkflowSteps(metadata?.partnerFlow, t),
     [metadata?.partnerFlow, t],
   );
 
-  const orderHint = useMemo(() => {
-    if (metadata?.partnerFlow === 'TOKEN' && tokenIpnCommand) {
-      const key = TOKEN_ORDER_HINT_KEYS[tokenIpnCommand];
-      return key ? t(key) : null;
-    }
-    if (metadata?.partnerFlow === 'RECURRING' && recurringIpnCommand) {
-      const key = RECURRING_ORDER_HINT_KEYS[recurringIpnCommand];
-      return key ? t(key) : null;
-    }
-    return null;
-  }, [metadata?.partnerFlow, tokenIpnCommand, recurringIpnCommand, t]);
-
-  const showCommandAdvanced = metadata?.partnerFlow === 'TOKEN' || metadata?.partnerFlow === 'RECURRING';
+  const showCommandAdvanced = metadata?.partnerFlow === 'TOKEN'
+    || metadata?.partnerFlow === 'RECURRING'
+    || metadata?.partnerFlow === 'PREAUTH';
 
   const runTest = useRunTestMutation(sessionId);
   const runIpnSuite = useRunIpnSuiteMutation(sessionId);
@@ -236,6 +234,7 @@ const SessionAuto = () => {
       testCase: 'SUCCESS',
       recurringIpnCommand: 'RECURRING',
       tokenIpnCommand: 'PAY_AND_CREATE',
+      preAuthIpnCommand: 'CREATE_TOKEN',
     });
 
     requestAnimationFrame(() => {
@@ -279,6 +278,9 @@ const SessionAuto = () => {
     }
     if (metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand) {
       payload.tokenIpnCommand = values.tokenIpnCommand;
+    }
+    if (metadata?.partnerFlow === 'PREAUTH' && values.preAuthIpnCommand) {
+      payload.preAuthIpnCommand = values.preAuthIpnCommand;
     }
     return payload;
   };
@@ -359,6 +361,9 @@ const SessionAuto = () => {
             : {}),
           ...(metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand
             ? { tokenIpnCommand: values.tokenIpnCommand }
+            : {}),
+          ...(metadata?.partnerFlow === 'PREAUTH' && values.preAuthIpnCommand
+            ? { preAuthIpnCommand: values.preAuthIpnCommand }
             : {}),
         },
         config: { timeout: 180000 },
@@ -467,27 +472,7 @@ const SessionAuto = () => {
           <input type="hidden" {...register('confirmedTxnRef')} />
           <input type="hidden" {...register('confirmedAmountVnd')} />
 
-          <div className="alert alert-light border mb-3" style={{ fontSize: 13 }}>
-            <strong>{t('sessions.autoWorkflowTitle')}</strong>
-            <ol className="mb-0 mt-2 ps-3">
-              {workflowSteps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-          </div>
-
           <div className="order-input-group mb-3">
-            <h4 className="order-input-title">{t('sessions.orderTitle')}</h4>
-            <p className="order-input-desc sit-page-subtitle">
-              {t(orderDescKey(metadata?.partnerFlow))}
-            </p>
-            {orderHint && (
-              <p className="order-input-desc sit-page-subtitle mb-2" style={{ color: 'var(--bs-primary)' }}>
-                <i className="ri-information-line" aria-hidden="true" />
-                {' '}
-                {orderHint}
-              </p>
-            )}
             <div className="order-prep-table">
               <div className="order-prep-head">
                 <span />
@@ -523,7 +508,22 @@ const SessionAuto = () => {
                 />
               </div>
             </div>
+            <p className="order-input-footnote mb-0">{t('sessions.orderTxnRefFootnote')}</p>
           </div>
+
+          <details className="ipn-ref-panel mb-3">
+            <summary className="ipn-ref-summary">
+              <i className="ri-guide-line" aria-hidden="true" />
+              {t('sessions.autoWorkflowTitle')}
+            </summary>
+            <div className="ipn-ref-body">
+              <ol className="mb-0 ps-3 auto-workflow-steps">
+                {workflowSteps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </div>
+          </details>
 
           {showCommandAdvanced && (
             <details className="order-input-group mb-3">
@@ -551,6 +551,19 @@ const SessionAuto = () => {
                   <label className="form-label small mb-1">{t('sessions.tokenCommandTitle')}</label>
                   <select className="form-select form-select-sm" {...register('tokenIpnCommand')}>
                     {metadata.tokenIpnCommands.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                        {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {metadata?.partnerFlow === 'PREAUTH' && metadata.preAuthIpnCommands.length > 0 && (
+                <div>
+                  <label className="form-label small mb-1">{t('sessions.preAuthCommandTitle')}</label>
+                  <select className="form-select form-select-sm" {...register('preAuthIpnCommand')}>
+                    {metadata.preAuthIpnCommands.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
                         {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}

@@ -14,5 +14,6 @@ public class TestMetadataResponse {
     private final List<EnumOption> paymentFlows;
     private final List<EnumOption> recurringIpnCommands;
     private final List<EnumOption> tokenIpnCommands;
+    private final List<EnumOption> preAuthIpnCommands;
     private final String defaultTxnRef;
 }

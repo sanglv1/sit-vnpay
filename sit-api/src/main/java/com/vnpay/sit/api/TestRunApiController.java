@@ -3,6 +3,7 @@ package com.vnpay.sit.api;
 import com.vnpay.sit.api.dto.*;
 import com.vnpay.sit.model.CallbackType;
 import com.vnpay.sit.model.PaymentFlow;
+import com.vnpay.sit.model.PreAuthIpnCommand;
 import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.model.TokenIpnCommand;
@@ -51,6 +52,7 @@ public class TestRunApiController {
                 .paymentFlows(toOptions(PaymentFlow.values()))
                 .recurringIpnCommands(toRecurringCommandOptions())
                 .tokenIpnCommands(toTokenCommandOptions())
+                .preAuthIpnCommands(toPreAuthCommandOptions())
                 .defaultTxnRef("SIT" + System.currentTimeMillis() % 1_000_000)
                 .build();
         return ApiResponse.ok(data);
@@ -142,6 +144,12 @@ public class TestRunApiController {
 
     private static java.util.List<EnumOption> toTokenCommandOptions() {
         return java.util.Arrays.stream(TokenIpnCommand.values())
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getCommandValue(), null, 0))
+                .toList();
+    }
+
+    private static java.util.List<EnumOption> toPreAuthCommandOptions() {
+        return java.util.Arrays.stream(PreAuthIpnCommand.values())
                 .map(v -> new EnumOption(v.name(), v.getLabel(), v.getCommandValue(), null, 0))
                 .toList();
     }

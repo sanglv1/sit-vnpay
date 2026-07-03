@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Base64;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,6 +109,27 @@ class ManualAcceptanceServiceTest {
 
     assertThat(saved.getReturnSuccessImage()).isEqualTo("data:image/png;base64,EXISTING_OK");
     assertThat(saved.getReturnFailedImage()).isEqualTo("data:image/png;base64,EXISTING_FAIL");
+  }
+
+  @Test
+  void save_shouldRejectOversizeReturnImage() {
+    PartnerConfig partner = partner(1L, "Merchant A");
+    TestSession session = session(5L, 1L);
+    ManualAcceptanceForm form = form(1L, 5L);
+    form.setReturnSuccessImage(dataUrlForBytes(3 * 1024 * 1024 + 1));
+
+    SitUserPrincipal principal = principal("qc@merchant.com", UserRole.MERCHANT_QC);
+    when(partnerService.requireAccessible(1L, principal)).thenReturn(partner);
+    when(accessControlService.requireSession(5L)).thenReturn(session);
+    doNothing().when(accessControlService).requireSessionAccess(session, principal);
+    doNothing().when(accessControlService).requireSessionAccess(5L, principal);
+    when(repository.findTopBySessionIdOrderByUpdatedAtDesc(5L))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> manualAcceptanceService.save(form, principal))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ảnh tối đa 3MB");
+    verify(repository, never()).save(any());
   }
 
   @Test
@@ -226,5 +248,13 @@ class ManualAcceptanceServiceTest {
     user.setRole(role);
     user.setActive(true);
     return new SitUserPrincipal(user);
+  }
+
+  private static String dataUrlForBytes(int size) {
+    byte[] bytes = new byte[size];
+    for (int i = 0; i < bytes.length; i++) {
+      bytes[i] = 65;
+    }
+    return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
   }
 }

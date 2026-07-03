@@ -2,7 +2,7 @@ export const guideContent = {
   vi: {
     title: 'Hướng dẫn thực hiện',
     subtitle: 'Quy trình nghiệm thu SIT VNPay — 6 bước',
-    intro: 'Cùng quy trình 6 bước cho 4 luồng thanh toán — khác nhau ở cấu hình Terminal và định dạng callback.',
+    intro: 'Cùng quy trình 6 bước cho 6 luồng thanh toán — khác nhau ở cấu hình Terminal và định dạng callback.',
     flowMain: [
       { step: 1, label: 'Chuẩn bị' },
       { step: 2, label: 'Terminal' },
@@ -30,13 +30,13 @@ export const guideContent = {
         pathLabel: 'Thêm Terminal',
         partnerFields: [
           ['Tên Terminal', 'Tên merchant / dự án'],
-          ['Luồng', 'Chọn 1 trong 4 luồng thanh toán'],
+          ['Luồng', 'Chọn 1 trong 6 luồng thanh toán'],
           ['TMN Code / Secret Key', 'Mã terminal và khóa HMAC'],
           ['Return URL', 'Redirect sau thanh toán'],
           ['IPN URL', 'API callback server-to-server'],
         ],
         note:
-          '**PAY / INSTALMENT**: PascalCase (`vnp_TxnRef`, `vnp_Amount`). **TOKEN / RECURRING**: snake_case (`vnp_txn_ref`, `vnp_amount`).',
+          '**PAY / INSTALMENT / QR_DIRECT**: PascalCase (`vnp_TxnRef`, `vnp_Amount`). **TOKEN / RECURRING / PREAUTH**: snake_case (`vnp_txn_ref`, `vnp_amount`). PreAuth dùng chữ ký raw (không URL-encode).',
       },
       {
         id: 3,
@@ -135,7 +135,7 @@ export const guideContent = {
   en: {
     title: 'Implementation guide',
     subtitle: 'VNPay SIT acceptance — 6 steps',
-    intro: 'One 6-step workflow for all four payment flows — differs in terminal setup and callback format.',
+    intro: 'One 6-step workflow for all six payment flows — differs in terminal setup and callback format.',
     flowMain: [
       { step: 1, label: 'Prep' },
       { step: 2, label: 'Terminal' },
@@ -163,13 +163,13 @@ export const guideContent = {
         pathLabel: 'Add terminal',
         partnerFields: [
           ['Terminal name', 'Merchant / project name'],
-          ['Flow', 'Select one of four payment flows'],
+          ['Flow', 'Select one of six payment flows'],
           ['TMN Code / Secret Key', 'Terminal code and HMAC secret'],
           ['Return URL', 'Post-payment redirect'],
           ['IPN URL', 'Server-to-server callback API'],
         ],
         note:
-          '**PAY / INSTALMENT**: PascalCase (`vnp_TxnRef`, `vnp_Amount`). **TOKEN / RECURRING**: snake_case (`vnp_txn_ref`, `vnp_amount`).',
+          '**PAY / INSTALMENT / QR_DIRECT**: PascalCase (`vnp_TxnRef`, `vnp_Amount`). **TOKEN / RECURRING / PREAUTH**: snake_case (`vnp_txn_ref`, `vnp_amount`). PreAuth uses raw-value signing (no URL encoding).',
       },
       {
         id: 3,
