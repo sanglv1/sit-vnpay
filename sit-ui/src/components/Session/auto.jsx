@@ -18,6 +18,15 @@ import { useI18n } from '../../i18n/useI18n';
 const SUCCESS_ORDER_CASES = new Set(['WRONG_AMOUNT', 'SUCCESS']);
 
 const buildIpnLogic = (t, flow) => {
+  if (flow === 'PAYMENTLINK') {
+    return [
+      { step: 1, check: t('sessions.ipnLogicStep1'), param: 'vnp-signature', rsp: '97' },
+      { step: 2, check: t('sessions.ipnLogicStep2'), param: 'btnId / prodId', rsp: '01' },
+      { step: 3, check: t('sessions.ipnLogicStep3'), param: 'amount', rsp: '99' },
+      { step: 4, check: t('sessions.ipnLogicStep4'), param: 'responseCode / transactionStatus', rsp: '00' },
+      { step: 5, check: t('sessions.ipnLogicStep5'), param: 'payerPayDate (already confirmed)', rsp: '02' },
+    ];
+  }
   const usesSnakeCase = flow === 'TOKEN' || flow === 'RECURRING' || flow === 'PREAUTH';
   if (usesSnakeCase) {
     return [
@@ -233,6 +242,7 @@ const SessionAuto = () => {
       wrongAmountVnd: session.wrongAmountVnd ?? '',
       testCase: 'SUCCESS',
       recurringIpnCommand: 'RECURRING',
+      recurringAppUserId: 'SIT_USER',
       tokenIpnCommand: 'PAY_AND_CREATE',
       preAuthIpnCommand: 'CREATE_TOKEN',
     });
@@ -275,6 +285,9 @@ const SessionAuto = () => {
     };
     if (metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand) {
       payload.recurringIpnCommand = values.recurringIpnCommand;
+    }
+    if (metadata?.partnerFlow === 'RECURRING' && values.recurringAppUserId?.trim()) {
+      payload.recurringAppUserId = values.recurringAppUserId.trim();
     }
     if (metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand) {
       payload.tokenIpnCommand = values.tokenIpnCommand;
@@ -358,6 +371,9 @@ const SessionAuto = () => {
           wrongAmountVnd: resolveWrongAmountVnd(values, 'WRONG_AMOUNT'),
           ...(metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand
             ? { recurringIpnCommand: values.recurringIpnCommand }
+            : {}),
+          ...(metadata?.partnerFlow === 'RECURRING' && values.recurringAppUserId?.trim()
+            ? { recurringAppUserId: values.recurringAppUserId.trim() }
             : {}),
           ...(metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand
             ? { tokenIpnCommand: values.tokenIpnCommand }
@@ -443,7 +459,9 @@ const SessionAuto = () => {
               </table>
             </div>
             <p className="ipn-ref-note sit-page-subtitle mb-2">
-              {t('sessions.ipnStep5Note')}
+              {metadata?.partnerFlow === 'PAYMENTLINK'
+                ? t('sessions.ipnStep5NotePaymentLink')
+                : t('sessions.ipnStep5Note')}
             </p>
             <div className="rsp-code-legend">
               {rspCodes.map(([code, label]) => (
@@ -534,17 +552,29 @@ const SessionAuto = () => {
                 {t('sessions.autoAdvancedCommandNote')}
               </p>
               {metadata?.partnerFlow === 'RECURRING' && metadata.recurringIpnCommands.length > 0 && (
-                <div className="mb-2">
-                  <label className="form-label small mb-1">{t('sessions.recurringCommandTitle')}</label>
-                  <select className="form-select form-select-sm" {...register('recurringIpnCommand')}>
-                    {metadata.recurringIpnCommands.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                        {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div className="mb-2">
+                    <label className="form-label small mb-1">{t('sessions.recurringCommandTitle')}</label>
+                    <select className="form-select form-select-sm" {...register('recurringIpnCommand')}>
+                      {metadata.recurringIpnCommands.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                          {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mb-2">
+                    <label className="form-label small mb-1">{t('sessions.recurringAppUserIdTitle')}</label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      placeholder={t('sessions.recurringAppUserIdPlaceholder')}
+                      {...register('recurringAppUserId')}
+                    />
+                    <div className="form-text">{t('sessions.recurringAppUserIdDesc')}</div>
+                  </div>
+                </>
               )}
               {metadata?.partnerFlow === 'TOKEN' && metadata.tokenIpnCommands.length > 0 && (
                 <div>

@@ -27,6 +27,7 @@ final class MinutesDocumentFiller {
         applyTemplateTokens(document, viewModelMapper.map(ctx));
         switch (ctx.flow()) {
             case PAY -> payFiller.fill(document, ctx);
+            case PAYMENTLINK -> payFiller.fill(document, ctx);
             case QR_DIRECT -> qrDirectFiller.fill(document, ctx);
             case INSTALMENT -> instalmentFiller.fill(document, ctx);
             case TOKEN, RECURRING -> tokenRecurringFiller.fill(document, ctx);

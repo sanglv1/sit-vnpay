@@ -29,7 +29,7 @@ public final class CallbackParamBuilder {
             long amountVnd,
             Long wrongAmountVnd
     ) {
-        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, null, null);
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, null, null, null, null);
     }
 
     public static Map<String, String> build(
@@ -41,7 +41,7 @@ public final class CallbackParamBuilder {
             Long wrongAmountVnd,
             RecurringIpnCommand recurringCommand
     ) {
-        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, null);
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, null, null, null);
     }
 
     public static Map<String, String> build(
@@ -54,7 +54,7 @@ public final class CallbackParamBuilder {
             RecurringIpnCommand recurringCommand,
             TokenIpnCommand tokenCommand
     ) {
-        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, tokenCommand, null);
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, tokenCommand, null, null);
     }
 
     public static Map<String, String> build(
@@ -67,6 +67,21 @@ public final class CallbackParamBuilder {
             RecurringIpnCommand recurringCommand,
             TokenIpnCommand tokenCommand,
             PreAuthIpnCommand preAuthCommand
+    ) {
+        return build(flow, testCase, tmnCode, txnRef, amountVnd, wrongAmountVnd, recurringCommand, tokenCommand, preAuthCommand, null);
+    }
+
+    public static Map<String, String> build(
+            PaymentFlow flow,
+            TestCaseType testCase,
+            String tmnCode,
+            String txnRef,
+            long amountVnd,
+            Long wrongAmountVnd,
+            RecurringIpnCommand recurringCommand,
+            TokenIpnCommand tokenCommand,
+            PreAuthIpnCommand preAuthCommand,
+            String recurringAppUserId
     ) {
         Map<String, String> params = new LinkedHashMap<>();
         String now = formatPayDate();
@@ -82,12 +97,13 @@ public final class CallbackParamBuilder {
             }
             case RECURRING -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
-                putRecurringIpnFields(params, txnRef, testCase, recurringCommand);
+                putRecurringIpnFields(params, txnRef, testCase, recurringCommand, recurringAppUserId);
             }
             case PREAUTH -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
                 putPreAuthIpnFields(params, txnRef, testCase, preAuthCommand);
             }
+            case PAYMENTLINK -> throw new IllegalArgumentException("paymentLink flow requires JSON/IPN POST runner");
         }
 
         if (testCase == TestCaseType.ORDER_NOT_FOUND) {
@@ -189,13 +205,14 @@ public final class CallbackParamBuilder {
             Map<String, String> params,
             String txnRef,
             TestCaseType testCase,
-            RecurringIpnCommand recurringCommand
+            RecurringIpnCommand recurringCommand,
+            String recurringAppUserId
     ) {
         RecurringIpnCommand command = recurringCommand != null
                 ? recurringCommand
                 : RecurringIpnCommand.defaultForIpnSuite();
         params.put("vnp_command", command.getCommandValue());
-        params.put("vnp_app_user_id", SIT_APP_USER_ID);
+        params.put("vnp_app_user_id", resolveRecurringAppUserId(recurringAppUserId));
         params.put("vnp_order_info", "SIT test " + txnRef);
         params.put("vnp_curr_code", "VND");
         if (testCase == TestCaseType.SUCCESS) {
@@ -206,6 +223,13 @@ public final class CallbackParamBuilder {
             params.put("vnp_token", "SIT_TOKEN_" + txnRef);
             params.put("vnp_token_exp_date", formatTokenExpDate());
         }
+    }
+
+    private static String resolveRecurringAppUserId(String recurringAppUserId) {
+        if (recurringAppUserId == null || recurringAppUserId.isBlank()) {
+            return SIT_APP_USER_ID;
+        }
+        return recurringAppUserId.trim();
     }
 
     private static String formatTokenExpDate() {

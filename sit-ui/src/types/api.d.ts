@@ -3,7 +3,7 @@
  * JSON dates are ISO-8601 strings.
  */
 
-export type PaymentFlow = 'PAY' | 'TOKEN' | 'RECURRING' | 'INSTALMENT' | 'QR_DIRECT' | 'PREAUTH';
+export type PaymentFlow = 'PAY' | 'TOKEN' | 'RECURRING' | 'INSTALMENT' | 'QR_DIRECT' | 'PREAUTH' | 'PAYMENTLINK';
 export type CallbackType = 'RETURN' | 'IPN';
 export type UserRole = 'ADMIN' | 'MERCHANT_QC';
 export type RecurringIpnCommand = 'RECURRING' | 'PAY_N_RECURRING' | 'UPDATE_TOKEN';
@@ -256,6 +256,7 @@ export interface TestRunRequest {
   amountVnd: number;
   wrongAmountVnd?: number;
   recurringIpnCommand?: RecurringIpnCommand;
+  recurringAppUserId?: string;
   tokenIpnCommand?: TokenIpnCommand;
   preAuthIpnCommand?: PreAuthIpnCommand;
 }
@@ -269,6 +270,7 @@ export interface TestSuiteRequest {
   failedAmountVnd?: number | null;
   wrongAmountVnd?: number;
   recurringIpnCommand?: RecurringIpnCommand;
+  recurringAppUserId?: string;
   tokenIpnCommand?: TokenIpnCommand;
   preAuthIpnCommand?: PreAuthIpnCommand;
 }

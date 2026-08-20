@@ -6,7 +6,8 @@ public enum PaymentFlow {
     RECURRING("THANH TOÁN ĐỊNH KỲ"),
     INSTALMENT("THANH TOÁN TRẢ GÓP"),
     QR_DIRECT("MERCHANT HOSTED QR (QR DIRECT)"),
-    PREAUTH("THANH TOÁN ỦY QUYỀN (PRE-AUTH)");
+    PREAUTH("THANH TOÁN ỦY QUYỀN (PRE-AUTH)"),
+    PAYMENTLINK("THANH TOÁN PAYMENTLINK");
 
     private final String label;
 

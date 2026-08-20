@@ -38,6 +38,8 @@ public final class CallbackSigner {
                     "vnp_secure_hash", "vnp_secure_hash_type");
             case PREAUTH -> new SigningProfile(StandardCharsets.UTF_8, false, false, true,
                     "vnp_secure_hash", "vnp_secure_hash_type", "vnp_SecureHash", "vnp_SecureHashType");
+            case PAYMENTLINK -> new SigningProfile(StandardCharsets.UTF_8, true, false, false,
+                    "vnp_SecureHash", "vnp_SecureHashType");
         };
     }
 

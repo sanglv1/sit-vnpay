@@ -1,5 +1,7 @@
 package com.vnpay.sit.model;
 
+import com.vnpay.sit.model.PaymentFlow;
+
 import java.util.List;
 
 public enum TestCaseType {
@@ -57,5 +59,18 @@ public enum TestCaseType {
 
     public boolean isManualOnly() {
         return this == UNKNOWN_ERROR;
+    }
+
+    /**
+     * Expected {@code RspCode} differs for some flows.
+     * <p>
+     * PaymentLink demo contract:
+     * - WRONG_AMOUNT returns {@code RspCode=99} (not {@code 04}).
+     */
+    public String getExpectedRspCodeForFlow(PaymentFlow flow) {
+        if (flow == PaymentFlow.PAYMENTLINK && this == WRONG_AMOUNT) {
+            return "99";
+        }
+        return getExpectedRspCode();
     }
 }

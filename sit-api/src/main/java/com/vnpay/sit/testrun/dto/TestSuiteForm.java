@@ -37,6 +37,9 @@ public class TestSuiteForm {
     /** Chỉ áp dụng khi partner flow = RECURRING; null → mặc định {@code recurring}. */
     private RecurringIpnCommand recurringIpnCommand;
 
+    /** Chỉ áp dụng khi partner flow = RECURRING; null/blank → mặc định {@code SIT_USER}. */
+    private String recurringAppUserId;
+
     /** Chỉ áp dụng khi partner flow = TOKEN; null → mặc định {@code pay_and_create}. */
     private TokenIpnCommand tokenIpnCommand;
 

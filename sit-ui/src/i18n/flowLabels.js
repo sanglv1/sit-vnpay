@@ -1,4 +1,4 @@
-export const FLOW_CODES = ['PAY', 'TOKEN', 'RECURRING', 'INSTALMENT', 'QR_DIRECT', 'PREAUTH'];
+export const FLOW_CODES = ['PAY', 'TOKEN', 'RECURRING', 'INSTALMENT', 'QR_DIRECT', 'PREAUTH', 'PAYMENTLINK'];
 
 export function getFlowLabel(t, flow) {
   if (!flow) return '';

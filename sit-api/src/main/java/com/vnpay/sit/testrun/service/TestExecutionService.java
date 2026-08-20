@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vnpay.sit.core.CallbackFields;
 import com.vnpay.sit.core.CallbackParamBuilder;
 import com.vnpay.sit.core.CallbackSigner;
+import com.vnpay.sit.core.VnPayHashUtils;
 import com.vnpay.sit.model.CallbackType;
 import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.PreAuthIpnCommand;
@@ -17,6 +18,7 @@ import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.runner.CallbackHttpRunner;
+import com.vnpay.sit.runner.PaymentLinkCallbackHttpRunner;
 import com.vnpay.sit.api.dto.PrepareOrderResponse;
 import com.vnpay.sit.api.dto.TestRunResponse;
 import com.vnpay.sit.api.dto.TestSuiteResponse;
@@ -65,6 +67,7 @@ public class TestExecutionService {
     private final PartnerService partnerService;
     private final TestRunRepository testRunRepository;
     private final CallbackHttpRunner httpRunner;
+    private final PaymentLinkCallbackHttpRunner paymentLinkHttpRunner;
     private final ObjectMapper objectMapper;
     private final AccessControlService accessControlService;
     private final TestSessionRepository sessionRepository;
@@ -74,6 +77,7 @@ public class TestExecutionService {
             PartnerService partnerService,
             TestRunRepository testRunRepository,
             CallbackHttpRunner httpRunner,
+            PaymentLinkCallbackHttpRunner paymentLinkHttpRunner,
             ObjectMapper objectMapper,
             AccessControlService accessControlService,
             TestSessionRepository sessionRepository,
@@ -82,6 +86,7 @@ public class TestExecutionService {
         this.partnerService = partnerService;
         this.testRunRepository = testRunRepository;
         this.httpRunner = httpRunner;
+        this.paymentLinkHttpRunner = paymentLinkHttpRunner;
         this.objectMapper = objectMapper;
         this.accessControlService = accessControlService;
         this.sessionRepository = sessionRepository;
@@ -164,7 +169,10 @@ public class TestExecutionService {
         requireRunnableSession(form.getSessionId(), principal);
         PartnerConfig partner = partnerService.requireAccessible(form.getPartnerId(), principal);
 
-        Map<String, String> params = buildParams(partner, form);
+        // PaymentLink contract doesn't use the same query-string/IPN field builder as other flows.
+        Map<String, String> params = (form.getCallbackType() == CallbackType.IPN && partner.getFlow() == PaymentFlow.PAYMENTLINK)
+                ? java.util.Map.of()
+                : buildParams(partner, form);
 
         String targetUrl = form.getCallbackType() == CallbackType.IPN
                 ? partner.getIpnUrl()
@@ -175,7 +183,15 @@ public class TestExecutionService {
         }
 
         boolean asIpn = form.getCallbackType() == CallbackType.IPN;
-        CallbackHttpRunner.CallbackResponse response = httpRunner.execute(targetUrl, params, asIpn);
+        String paymentLinkRawBody = null;
+        CallbackHttpRunner.CallbackResponse response;
+        if (asIpn && partner.getFlow() == PaymentFlow.PAYMENTLINK) {
+            paymentLinkRawBody = buildPaymentLinkIpnRawBody(partner, form);
+            String signature = buildPaymentLinkSignature(partner, paymentLinkRawBody, form.getTestCase());
+            response = paymentLinkHttpRunner.execute(targetUrl, paymentLinkRawBody, signature);
+        } else {
+            response = httpRunner.execute(targetUrl, params, asIpn);
+        }
 
         TestRun run = new TestRun();
         run.setPartnerId(partner.getId());
@@ -186,7 +202,11 @@ public class TestExecutionService {
         run.setTestCase(form.getTestCase());
         run.setTxnRef(form.getTxnRef().trim());
         run.setTargetUrl(targetUrl);
-        run.setRequestParams(toJson(params));
+        if (asIpn && partner.getFlow() == PaymentFlow.PAYMENTLINK) {
+            run.setRequestParams(paymentLinkRawBody);
+        } else {
+            run.setRequestParams(toJson(params));
+        }
         run.setRequestUrl(truncate(response.requestUrl(), 8000));
         run.setHttpStatus(response.httpStatus());
         run.setResponseBody(truncate(response.responseBody(), 8000));
@@ -196,8 +216,8 @@ public class TestExecutionService {
         if (asIpn) {
             String actualRsp = extractRspCode(response.responseBody());
             run.setActualRspCode(actualRsp);
-            run.setExpectedRspCode(form.getTestCase().getExpectedRspCode());
-            run.setPassed(evaluateIpn(form.getTestCase(), response, actualRsp));
+            run.setExpectedRspCode(form.getTestCase().getExpectedRspCodeForFlow(partner.getFlow()));
+            run.setPassed(evaluateIpn(form.getTestCase(), partner.getFlow(), response, actualRsp));
         } else {
             run.setPassed(response.httpStatus() >= 200 && response.httpStatus() < 400 && !response.hasError());
         }
@@ -239,6 +259,7 @@ public class TestExecutionService {
                 runForm.setWrongAmountVnd(wrongAmount);
             }
             runForm.setRecurringIpnCommand(form.getRecurringIpnCommand());
+            runForm.setRecurringAppUserId(form.getRecurringAppUserId());
             runForm.setTokenIpnCommand(form.getTokenIpnCommand());
             runForm.setPreAuthIpnCommand(form.getPreAuthIpnCommand());
             TestRun run = execute(runForm, principal);
@@ -291,6 +312,7 @@ public class TestExecutionService {
         }
 
         String partnerName = latestByCase.values().iterator().next().getPartnerName();
+        PaymentFlow partnerFlow = latestByCase.values().iterator().next().getFlow();
         String txnRef = null;
         String failedTxnRef = null;
         List<TestSuiteStepResponse> steps = new ArrayList<>();
@@ -304,7 +326,7 @@ public class TestExecutionService {
                         .checkOrder(testCase.getCheckOrder())
                         .testCase(testCase)
                         .testCaseLabel(testCase.getLabel())
-                        .expectedRspCode(testCase.getExpectedRspCode())
+                        .expectedRspCode(testCase.getExpectedRspCodeForFlow(partnerFlow))
                         .passed(false)
                         .build());
             } else {
@@ -428,7 +450,8 @@ public class TestExecutionService {
                 form.getWrongAmountVnd(),
                 resolveRecurringCommand(partner.getFlow(), form.getRecurringIpnCommand()),
                 resolveTokenCommand(partner.getFlow(), form.getTokenIpnCommand()),
-                resolvePreAuthCommand(partner.getFlow(), form.getPreAuthIpnCommand())
+                resolvePreAuthCommand(partner.getFlow(), form.getPreAuthIpnCommand()),
+                resolveRecurringAppUserId(partner.getFlow(), form.getRecurringAppUserId())
         );
 
         if (form.getTestCase() == TestCaseType.INVALID_HASH) {
@@ -449,6 +472,13 @@ public class TestExecutionService {
         return recurringIpnCommand != null ? recurringIpnCommand : RecurringIpnCommand.defaultForIpnSuite();
     }
 
+    private static String resolveRecurringAppUserId(PaymentFlow flow, String recurringAppUserId) {
+        if (flow != PaymentFlow.RECURRING) {
+            return null;
+        }
+        return recurringAppUserId;
+    }
+
     private static TokenIpnCommand resolveTokenCommand(PaymentFlow flow, TokenIpnCommand tokenIpnCommand) {
         if (flow != PaymentFlow.TOKEN) {
             return null;
@@ -464,14 +494,71 @@ public class TestExecutionService {
     }
 
     private boolean evaluateIpn(TestCaseType testCase, CallbackHttpRunner.CallbackResponse response, String actualRsp) {
+        return evaluateIpn(testCase, null, response, actualRsp);
+    }
+
+    private boolean evaluateIpn(
+            TestCaseType testCase,
+            PaymentFlow flow,
+            CallbackHttpRunner.CallbackResponse response,
+            String actualRsp
+    ) {
         if (response.hasError() || response.httpStatus() < 200 || response.httpStatus() >= 400) {
             return false;
         }
-        String expected = testCase.getExpectedRspCode();
+
+        // Default behavior (other flows): keep enum's expected mapping.
+        // PaymentLink overrides WRONG_AMOUNT => RspCode=99.
+        String expected = flow != null
+                ? testCase.getExpectedRspCodeForFlow(flow)
+                : testCase.getExpectedRspCode();
         if (expected == null) {
             return actualRsp != null;
         }
         return expected.equals(actualRsp);
+    }
+
+    private String buildPaymentLinkIpnRawBody(PartnerConfig partner, TestRunForm form) {
+        // Contract fields (demo) read by VNPayPaymentLinkService:
+        // btnId, prodId(optional), responseCode, transactionStatus, transactionNo, payDate, bankCode, amount
+        long amountVnd = form.getTestCase() == TestCaseType.WRONG_AMOUNT && form.getWrongAmountVnd() != null
+                ? form.getWrongAmountVnd()
+                : form.getAmountVnd();
+        long amountMinor = amountVnd * 100;
+
+        String responseCode = "00";
+        String transactionStatus = form.getTestCase() == TestCaseType.FAILED ? "01" : "00";
+        String transactionNo = String.valueOf(System.currentTimeMillis() % 1_000_000_000L);
+        String payDate = formatPayDateGmt7();
+
+        // Keep insertion order so signature uses deterministic JSON string.
+        java.util.LinkedHashMap<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("btnId", form.getTxnRef().trim()); // For this SIT version we bind txnRef -> btnId.
+        payload.put("responseCode", responseCode);
+        payload.put("transactionStatus", transactionStatus);
+        payload.put("transactionNo", transactionNo);
+        payload.put("payDate", payDate);
+        payload.put("bankCode", "NCB");
+        payload.put("amount", amountMinor);
+
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Không serialize paymentLink rawBody (JSON) được");
+        }
+    }
+
+    private String buildPaymentLinkSignature(PartnerConfig partner, String rawBody, TestCaseType testCase) {
+        if (testCase == TestCaseType.INVALID_HASH) {
+            return "invalid_sit_signature";
+        }
+        return VnPayHashUtils.hmacSha512(partner.getSecretKey(), rawBody);
+    }
+
+    private static String formatPayDateGmt7() {
+        java.text.SimpleDateFormat formatter = new java.text.SimpleDateFormat("yyyyMMddHHmmss");
+        formatter.setTimeZone(java.util.TimeZone.getTimeZone("Etc/GMT+7"));
+        return formatter.format(new java.util.Date());
     }
 
     private String extractRspCode(String body) {

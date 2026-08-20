@@ -113,7 +113,7 @@ public class TestSessionApiController {
                 .session(session)
                 .partnerFlow(partnerFlow)
                 .latestRuns(testExecutionService.findLatestRunsForSession(id, principal))
-                .testCases(toTestCaseOptions())
+                .testCases(toTestCaseOptions(partnerFlow))
                 .recurringIpnCommands(partnerFlow == PaymentFlow.RECURRING
                         ? toRecurringCommandOptions()
                         : java.util.List.of())
@@ -173,9 +173,9 @@ public class TestSessionApiController {
                 .body(exported.content());
     }
 
-    private static java.util.List<EnumOption> toTestCaseOptions() {
+    private static java.util.List<EnumOption> toTestCaseOptions(PaymentFlow partnerFlow) {
         return TestCaseType.autoIpnTestCases().stream()
-                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getExpectedRspCode(),
+                .map(v -> new EnumOption(v.name(), v.getLabel(), v.getExpectedRspCodeForFlow(partnerFlow),
                         v.getCaseCode(), v.getCheckOrder()))
                 .toList();
     }
