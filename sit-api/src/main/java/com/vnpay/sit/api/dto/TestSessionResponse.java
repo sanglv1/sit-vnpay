@@ -24,6 +24,7 @@ public class TestSessionResponse {
     private final String failedTxnRef;
     private final Long failedAmountVnd;
     private final Long wrongAmountVnd;
+    private final String recurringAppUserId;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
     private final String createdByEmail;
@@ -45,6 +46,7 @@ public class TestSessionResponse {
                 .failedTxnRef(entity.getFailedTxnRef())
                 .failedAmountVnd(entity.getFailedAmountVnd())
                 .wrongAmountVnd(entity.getWrongAmountVnd())
+                .recurringAppUserId(entity.getRecurringAppUserId())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .createdByEmail(entity.getCreatedByEmail())

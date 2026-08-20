@@ -16,4 +16,5 @@ public class SessionWorkspaceResponse {
     private final List<EnumOption> recurringIpnCommands;
     private final List<EnumOption> tokenIpnCommands;
     private final List<EnumOption> preAuthIpnCommands;
+    private final String partnerRecurringAppUserId;
 }

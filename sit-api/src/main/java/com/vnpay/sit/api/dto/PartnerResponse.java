@@ -19,6 +19,7 @@ public class PartnerResponse {
     private final String returnUrl;
     private final String ipnUrl;
     private final String note;
+    private final String recurringAppUserId;
     private final boolean active;
     private final String createdByEmail;
     private final LocalDateTime createdAt;
@@ -35,6 +36,7 @@ public class PartnerResponse {
                 .returnUrl(entity.getReturnUrl())
                 .ipnUrl(entity.getIpnUrl())
                 .note(entity.getNote())
+                .recurringAppUserId(entity.getRecurringAppUserId())
                 .active(entity.isActive())
                 .createdByEmail(entity.getCreatedByEmail())
                 .createdAt(entity.getCreatedAt())

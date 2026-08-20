@@ -44,6 +44,7 @@ export interface PartnerResponse {
   returnUrl: string | null;
   ipnUrl: string;
   note: string | null;
+  recurringAppUserId: string | null;
   active: boolean;
   createdByEmail: string | null;
   createdAt: string;
@@ -66,6 +67,7 @@ export interface TestSessionResponse {
   failedTxnRef: string | null;
   failedAmountVnd: number | null;
   wrongAmountVnd: number | null;
+  recurringAppUserId: string | null;
   createdAt: string;
   updatedAt: string;
   createdByEmail: string | null;
@@ -104,6 +106,7 @@ export interface SessionWorkspaceResponse {
   recurringIpnCommands: EnumOption[];
   tokenIpnCommands: EnumOption[];
   preAuthIpnCommands: EnumOption[];
+  partnerRecurringAppUserId: string | null;
 }
 
 export interface EnumOption {
@@ -245,6 +248,7 @@ export interface SaveSessionTestInputRequest {
   confirmedTxnRef?: string;
   confirmedAmountVnd?: number | null;
   wrongAmountVnd?: number | null;
+  recurringAppUserId?: string | null;
 }
 
 export interface TestRunRequest {
@@ -290,6 +294,7 @@ export interface PartnerFormRequest {
   returnUrl?: string;
   ipnUrl: string;
   note?: string;
+  recurringAppUserId?: string | null;
   active?: boolean;
 }
 

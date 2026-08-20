@@ -3,6 +3,7 @@ package com.vnpay.sit.session.service;
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.api.dto.TestSessionResponse;
+import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.partner.service.PartnerService;
@@ -103,6 +104,10 @@ public class TestSessionService {
         if (StringUtils.hasText(createdByEmail)) {
             session.setCreatedByEmail(createdByEmail.trim().toLowerCase());
         }
+        if (partner.getFlow() == PaymentFlow.RECURRING
+                && StringUtils.hasText(partner.getRecurringAppUserId())) {
+            session.setRecurringAppUserId(partner.getRecurringAppUserId().trim());
+        }
 
         TestSession saved = sessionRepository.save(session);
         return toResponse(saved, java.util.Map.of(saved.getId(), 0));
@@ -139,8 +144,28 @@ public class TestSessionService {
         if (form.getWrongAmountVnd() != null) {
             session.setWrongAmountVnd(form.getWrongAmountVnd());
         }
+        if (form.getRecurringAppUserId() != null) {
+            String appUserId = form.getRecurringAppUserId().trim();
+            session.setRecurringAppUserId(appUserId.isEmpty() ? null : appUserId);
+            if (!appUserId.isEmpty()) {
+                partnerService.saveRecurringAppUserId(session.getPartnerId(), appUserId, principal);
+            }
+        }
 
         sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void saveRecurringAppUserId(Long sessionId, String recurringAppUserId, SitUserPrincipal principal) {
+        if (sessionId == null || !StringUtils.hasText(recurringAppUserId)) {
+            return;
+        }
+        TestSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiên kiểm thử"));
+        accessControlService.requireSessionAccess(session, principal);
+        session.setRecurringAppUserId(recurringAppUserId.trim());
+        sessionRepository.save(session);
+        partnerService.saveRecurringAppUserId(session.getPartnerId(), recurringAppUserId.trim(), principal);
     }
 
     @Transactional

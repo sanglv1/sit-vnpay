@@ -55,6 +55,10 @@ public class TestSession {
     @Column(name = "wrong_amount_vnd")
     private Long wrongAmountVnd;
 
+    /** Chỉ dùng luồng RECURRING — map sang vnp_app_user_id khi gửi IPN / xuất biên bản. */
+    @Column(name = "recurring_app_user_id", length = 100)
+    private String recurringAppUserId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

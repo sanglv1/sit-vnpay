@@ -120,7 +120,7 @@ const validateOrderForCase = (caseValue, values, t) => {
   return null;
 };
 
-const toTestInputPayload = (values) => ({
+const toTestInputPayload = (values, partnerFlow) => ({
   pendingTxnRef: values.pendingTxnRef?.trim() ?? '',
   pendingAmountVnd: values.pendingAmountVnd ? Number(values.pendingAmountVnd) : null,
   failedTxnRef: values.failedTxnRef?.trim() ?? '',
@@ -128,6 +128,9 @@ const toTestInputPayload = (values) => ({
   confirmedTxnRef: values.confirmedTxnRef?.trim() ?? '',
   confirmedAmountVnd: values.confirmedAmountVnd ? Number(values.confirmedAmountVnd) : null,
   wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
+  ...(partnerFlow === 'RECURRING'
+    ? { recurringAppUserId: values.recurringAppUserId?.trim() ?? '' }
+    : {}),
 });
 
 const buildWorkflowSteps = (flow, t) => {
@@ -179,7 +182,11 @@ const SessionAuto = () => {
   const dispatch = useDispatch();
   const { t } = useI18n();
   const [runningCase, setRunningCase] = useState(null);
-  const { register, handleSubmit, getValues, reset, setValue } = useForm();
+  const { register, handleSubmit, getValues, reset, setValue, watch } = useForm({
+    defaultValues: {
+      recurringAppUserId: 'SIT_USER',
+    },
+  });
   const initializedSessionId = useRef(null);
   const formReadyRef = useRef(false);
 
@@ -242,7 +249,9 @@ const SessionAuto = () => {
       wrongAmountVnd: session.wrongAmountVnd ?? '',
       testCase: 'SUCCESS',
       recurringIpnCommand: 'RECURRING',
-      recurringAppUserId: 'SIT_USER',
+      recurringAppUserId: session.recurringAppUserId
+        || workspace.partnerRecurringAppUserId
+        || 'SIT_USER',
       tokenIpnCommand: 'PAY_AND_CREATE',
       preAuthIpnCommand: 'CREATE_TOKEN',
     });
@@ -250,16 +259,16 @@ const SessionAuto = () => {
     requestAnimationFrame(() => {
       formReadyRef.current = true;
     });
-  }, [session, metadata, reset]);
+  }, [session, metadata, workspace, reset]);
 
   const saveCurrentInput = () => {
     if (!formReadyRef.current) return;
-    saveTestInput.mutate(toTestInputPayload(getValues()));
+    saveTestInput.mutate(toTestInputPayload(getValues(), metadata?.partnerFlow));
   };
 
   const persistTestInput = async () => {
     if (!sessionId) return;
-    await saveTestInput.mutateAsync(toTestInputPayload(getValues()));
+    await saveTestInput.mutateAsync(toTestInputPayload(getValues(), metadata?.partnerFlow));
   };
 
   const resolveWrongAmountVnd = (values, caseValue) => {
@@ -286,8 +295,8 @@ const SessionAuto = () => {
     if (metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand) {
       payload.recurringIpnCommand = values.recurringIpnCommand;
     }
-    if (metadata?.partnerFlow === 'RECURRING' && values.recurringAppUserId?.trim()) {
-      payload.recurringAppUserId = values.recurringAppUserId.trim();
+    if (metadata?.partnerFlow === 'RECURRING') {
+      payload.recurringAppUserId = values.recurringAppUserId?.trim() || 'SIT_USER';
     }
     if (metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand) {
       payload.tokenIpnCommand = values.tokenIpnCommand;
@@ -309,13 +318,13 @@ const SessionAuto = () => {
     try {
       await persistTestInput();
       const result = await runTest.mutateAsync({
-        ...buildPayload(values, caseValue),
+        ...buildPayload(getValues(), caseValue),
       });
       if (caseValue === 'SUCCESS' && result.passed) {
         const order = resolveOrderForCase('SUCCESS', getValues());
         setValue('confirmedTxnRef', order.txnRef);
         setValue('confirmedAmountVnd', order.amountVnd);
-        await saveTestInput.mutateAsync(toTestInputPayload(getValues()));
+        await saveTestInput.mutateAsync(toTestInputPayload(getValues(), metadata?.partnerFlow));
       }
       const orderAlreadyProcessed = !result.passed
         && result.actualRspCode === '02'
@@ -360,26 +369,27 @@ const SessionAuto = () => {
     }
     try {
       await persistTestInput();
+      const latest = getValues();
       const result = await runIpnSuite.mutateAsync({
         data: {
           partnerId: Number(session.partnerId),
           sessionId: Number(sessionId),
-          txnRef: values.pendingTxnRef.trim(),
-          amountVnd: Number(values.pendingAmountVnd),
-          failedTxnRef: values.failedTxnRef.trim(),
-          failedAmountVnd: values.failedAmountVnd ? Number(values.failedAmountVnd) : null,
-          wrongAmountVnd: resolveWrongAmountVnd(values, 'WRONG_AMOUNT'),
-          ...(metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand
-            ? { recurringIpnCommand: values.recurringIpnCommand }
+          txnRef: latest.pendingTxnRef.trim(),
+          amountVnd: Number(latest.pendingAmountVnd),
+          failedTxnRef: latest.failedTxnRef.trim(),
+          failedAmountVnd: latest.failedAmountVnd ? Number(latest.failedAmountVnd) : null,
+          wrongAmountVnd: resolveWrongAmountVnd(latest, 'WRONG_AMOUNT'),
+          ...(metadata?.partnerFlow === 'RECURRING' && latest.recurringIpnCommand
+            ? { recurringIpnCommand: latest.recurringIpnCommand }
             : {}),
-          ...(metadata?.partnerFlow === 'RECURRING' && values.recurringAppUserId?.trim()
-            ? { recurringAppUserId: values.recurringAppUserId.trim() }
+          ...(metadata?.partnerFlow === 'RECURRING'
+            ? { recurringAppUserId: latest.recurringAppUserId?.trim() || 'SIT_USER' }
             : {}),
-          ...(metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand
-            ? { tokenIpnCommand: values.tokenIpnCommand }
+          ...(metadata?.partnerFlow === 'TOKEN' && latest.tokenIpnCommand
+            ? { tokenIpnCommand: latest.tokenIpnCommand }
             : {}),
-          ...(metadata?.partnerFlow === 'PREAUTH' && values.preAuthIpnCommand
-            ? { preAuthIpnCommand: values.preAuthIpnCommand }
+          ...(metadata?.partnerFlow === 'PREAUTH' && latest.preAuthIpnCommand
+            ? { preAuthIpnCommand: latest.preAuthIpnCommand }
             : {}),
         },
         config: { timeout: 180000 },
@@ -529,6 +539,19 @@ const SessionAuto = () => {
             <p className="order-input-footnote mb-0">{t('sessions.orderTxnRefFootnote')}</p>
           </div>
 
+          {metadata?.partnerFlow === 'RECURRING' && (
+            <div className="order-input-group mb-3">
+              <label className="form-label small mb-1">{t('sessions.recurringAppUserIdTitle')}</label>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                placeholder={t('sessions.recurringAppUserIdPlaceholder')}
+                {...register('recurringAppUserId')}
+              />
+              <div className="form-text mb-0">{t('sessions.recurringAppUserIdDesc')}</div>
+            </div>
+          )}
+
           <details className="ipn-ref-panel mb-3">
             <summary className="ipn-ref-summary">
               <i className="ri-guide-line" aria-hidden="true" />
@@ -552,29 +575,17 @@ const SessionAuto = () => {
                 {t('sessions.autoAdvancedCommandNote')}
               </p>
               {metadata?.partnerFlow === 'RECURRING' && metadata.recurringIpnCommands.length > 0 && (
-                <>
-                  <div className="mb-2">
-                    <label className="form-label small mb-1">{t('sessions.recurringCommandTitle')}</label>
-                    <select className="form-select form-select-sm" {...register('recurringIpnCommand')}>
-                      {metadata.recurringIpnCommands.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                          {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-2">
-                    <label className="form-label small mb-1">{t('sessions.recurringAppUserIdTitle')}</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      placeholder={t('sessions.recurringAppUserIdPlaceholder')}
-                      {...register('recurringAppUserId')}
-                    />
-                    <div className="form-text">{t('sessions.recurringAppUserIdDesc')}</div>
-                  </div>
-                </>
+                <div className="mb-2">
+                  <label className="form-label small mb-1">{t('sessions.recurringCommandTitle')}</label>
+                  <select className="form-select form-select-sm" {...register('recurringIpnCommand')}>
+                    {metadata.recurringIpnCommands.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                        {opt.expectedRspCode ? ` — ${opt.expectedRspCode}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
               {metadata?.partnerFlow === 'TOKEN' && metadata.tokenIpnCommands.length > 0 && (
                 <div>
@@ -619,6 +630,7 @@ const SessionAuto = () => {
           runsByCase={runsByCase}
           autoPassed={session.autoPassed}
           autoTotal={session.autoTotal}
+          recurringAppUserId={watch('recurringAppUserId')}
           onRunCase={(caseValue) => {
             setValue('testCase', caseValue);
             runSingleCase(caseValue);

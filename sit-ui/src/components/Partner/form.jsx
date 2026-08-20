@@ -16,8 +16,8 @@ const PartnerForm = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { t } = useI18n();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm({
-    defaultValues: { active: true, flow: 'PAY' },
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm({
+    defaultValues: { active: true, flow: 'PAY', recurringAppUserId: '' },
   });
   const { data: partner, isLoading } = usePartnerQuery(id, { enabled: isEdit });
   const savePartner = useSavePartnerMutation();
@@ -32,6 +32,7 @@ const PartnerForm = () => {
       returnUrl: partner.returnUrl,
       ipnUrl: partner.ipnUrl,
       note: partner.note || '',
+      recurringAppUserId: partner.recurringAppUserId || '',
       active: partner.active,
     });
   }, [partner, reset]);
@@ -40,6 +41,9 @@ const PartnerForm = () => {
     const payload = {
       ...values,
       returnUrl: values.returnUrl?.trim() ?? '',
+      recurringAppUserId: values.flow === 'RECURRING'
+        ? (values.recurringAppUserId?.trim() || '')
+        : undefined,
       active: values.active === true || values.active === 'true',
     };
     try {
@@ -97,6 +101,17 @@ const PartnerForm = () => {
                 <label className="form-label">{t('partners.secretKey')} *</label>
                 <input className="form-control" {...register('secretKey', { required: t('common.required') })} />
               </div>
+              {watch('flow') === 'RECURRING' && (
+                <div className="col-12">
+                  <label className="form-label">{t('partners.recurringAppUserId')}</label>
+                  <input
+                    className="form-control"
+                    placeholder="SIT_USER"
+                    {...register('recurringAppUserId')}
+                  />
+                  <div className="form-text">{t('partners.recurringAppUserIdDesc')}</div>
+                </div>
+              )}
               <div className="col-12">
                 <label className="form-label">{t('partners.returnUrl')}</label>
                 <input

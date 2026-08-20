@@ -5,6 +5,7 @@ import com.vnpay.sit.model.PreAuthIpnCommand;
 import com.vnpay.sit.model.RecurringIpnCommand;
 import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.model.TokenIpnCommand;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -38,6 +39,7 @@ public class TestRunForm {
     private RecurringIpnCommand recurringIpnCommand;
 
     /** Chỉ áp dụng khi partner flow = RECURRING; null/blank → mặc định {@code SIT_USER}. */
+    @JsonAlias({"appUserId", "vnp_app_user_id"})
     private String recurringAppUserId;
 
     /** Chỉ áp dụng khi partner flow = TOKEN; null → mặc định {@code pay_and_create}. */

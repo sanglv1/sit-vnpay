@@ -123,6 +123,9 @@ public class TestSessionApiController {
                 .preAuthIpnCommands(partnerFlow == PaymentFlow.PREAUTH
                         ? toPreAuthCommandOptions()
                         : java.util.List.of())
+                .partnerRecurringAppUserId(partnerFlow == PaymentFlow.RECURRING
+                        ? partner.getRecurringAppUserId()
+                        : null)
                 .build());
     }
 

@@ -231,6 +231,13 @@ public class TestExecutionService {
                 form.getWrongAmountVnd(),
                 principal
         );
+        if (partner.getFlow() == PaymentFlow.RECURRING) {
+            testSessionService.saveRecurringAppUserId(
+                    form.getSessionId(),
+                    resolveRecurringAppUserId(partner, form),
+                    principal
+            );
+        }
         return saved;
     }
 
@@ -259,7 +266,7 @@ public class TestExecutionService {
                 runForm.setWrongAmountVnd(wrongAmount);
             }
             runForm.setRecurringIpnCommand(form.getRecurringIpnCommand());
-            runForm.setRecurringAppUserId(form.getRecurringAppUserId());
+            runForm.setRecurringAppUserId(resolveSuiteRecurringAppUserId(partner, form));
             runForm.setTokenIpnCommand(form.getTokenIpnCommand());
             runForm.setPreAuthIpnCommand(form.getPreAuthIpnCommand());
             TestRun run = execute(runForm, principal);
@@ -451,7 +458,7 @@ public class TestExecutionService {
                 resolveRecurringCommand(partner.getFlow(), form.getRecurringIpnCommand()),
                 resolveTokenCommand(partner.getFlow(), form.getTokenIpnCommand()),
                 resolvePreAuthCommand(partner.getFlow(), form.getPreAuthIpnCommand()),
-                resolveRecurringAppUserId(partner.getFlow(), form.getRecurringAppUserId())
+                resolveRecurringAppUserId(partner, form)
         );
 
         if (form.getTestCase() == TestCaseType.INVALID_HASH) {
@@ -472,11 +479,47 @@ public class TestExecutionService {
         return recurringIpnCommand != null ? recurringIpnCommand : RecurringIpnCommand.defaultForIpnSuite();
     }
 
-    private static String resolveRecurringAppUserId(PaymentFlow flow, String recurringAppUserId) {
-        if (flow != PaymentFlow.RECURRING) {
+    private String resolveSuiteRecurringAppUserId(PartnerConfig partner, TestSuiteForm form) {
+        if (partner.getFlow() != PaymentFlow.RECURRING) {
             return null;
         }
-        return recurringAppUserId;
+        if (StringUtils.hasText(form.getRecurringAppUserId())) {
+            return form.getRecurringAppUserId().trim();
+        }
+        String fromSession = sessionAppUserId(form.getSessionId());
+        if (StringUtils.hasText(fromSession)) {
+            return fromSession;
+        }
+        return StringUtils.hasText(partner.getRecurringAppUserId())
+                ? partner.getRecurringAppUserId().trim()
+                : null;
+    }
+
+    private String resolveRecurringAppUserId(PartnerConfig partner, TestRunForm form) {
+        if (partner.getFlow() != PaymentFlow.RECURRING) {
+            return null;
+        }
+        if (StringUtils.hasText(form.getRecurringAppUserId())) {
+            return form.getRecurringAppUserId().trim();
+        }
+        String fromSession = sessionAppUserId(form.getSessionId());
+        if (StringUtils.hasText(fromSession)) {
+            return fromSession;
+        }
+        return StringUtils.hasText(partner.getRecurringAppUserId())
+                ? partner.getRecurringAppUserId().trim()
+                : null;
+    }
+
+    private String sessionAppUserId(Long sessionId) {
+        if (sessionId == null) {
+            return null;
+        }
+        return sessionRepository.findById(sessionId)
+                .map(TestSession::getRecurringAppUserId)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .orElse(null);
     }
 
     private static TokenIpnCommand resolveTokenCommand(PaymentFlow flow, TokenIpnCommand tokenIpnCommand) {

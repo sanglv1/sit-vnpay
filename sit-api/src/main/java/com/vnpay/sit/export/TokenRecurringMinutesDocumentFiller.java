@@ -234,7 +234,7 @@ final class TokenRecurringMinutesDocumentFiller {
 
             if (inIpn && inInput && currentCase != null) {
                 Optional<TestRun> run = ctx.run(currentCase);
-                if (run.isPresent() && fillSnakeCaseParamLine(paragraph, text, parseParams(run.get()))) {
+                if (run.isPresent() && fillSnakeCaseParamLine(paragraph, text, parseParams(run.get(), ctx))) {
                     continue;
                 }
             }
@@ -504,13 +504,21 @@ final class TokenRecurringMinutesDocumentFiller {
     }
 
     private String mapLabelToParamKey(String label) {
-        if (label.startsWith("vnp_txn_ref")) {
-            return "vnp_txn_ref";
+        if (label == null || label.isBlank()) {
+            return null;
         }
-        if (label.startsWith("vnp_")) {
-            return label;
+        String key = label.trim();
+        int cut = key.length();
+        int space = key.indexOf(' ');
+        int paren = key.indexOf('(');
+        if (space > 0) {
+            cut = Math.min(cut, space);
         }
-        return null;
+        if (paren > 0) {
+            cut = Math.min(cut, paren);
+        }
+        key = key.substring(0, cut).trim();
+        return key.startsWith("vnp_") ? key : null;
     }
 
     private Optional<TestCaseType> detectIpnCase(String text, PaymentFlow flow) {
@@ -644,13 +652,34 @@ final class TokenRecurringMinutesDocumentFiller {
         return Boolean.TRUE.equals(passed) ? "Đạt" : "Không đạt";
     }
 
-    private Map<String, String> parseParams(TestRun run) {
+    private Map<String, String> parseParams(TestRun run, MinutesExportContext ctx) {
+        Map<String, String> params;
         try {
-            return objectMapper.readValue(run.getRequestParams(), new TypeReference<>() {});
+            params = objectMapper.readValue(run.getRequestParams(), new TypeReference<>() {});
         } catch (Exception ex) {
             log.warn("Cannot parse requestParams for testRunId={}, payload={}", run.getId(), run.getRequestParams(), ex);
             return Map.of();
         }
+        applySessionRecurringAppUserId(params, ctx);
+        return params;
+    }
+
+    /**
+     * Phiên đã chạy IPN vẫn có thể gán lại vnp_app_user_id khi xuất biên bản,
+     * không cần chạy lại suite (tránh RspCode 02).
+     */
+    private void applySessionRecurringAppUserId(Map<String, String> params, MinutesExportContext ctx) {
+        if (ctx == null || ctx.flow() != PaymentFlow.RECURRING || params.isEmpty()) {
+            return;
+        }
+        String appUserId = ctx.getSession() != null ? ctx.getSession().getRecurringAppUserId() : null;
+        if (appUserId == null || appUserId.isBlank()) {
+            appUserId = ctx.getPartner() != null ? ctx.getPartner().getRecurringAppUserId() : null;
+        }
+        if (appUserId == null || appUserId.isBlank()) {
+            return;
+        }
+        params.put("vnp_app_user_id", appUserId.trim());
     }
 
     private void applyTemplateTokens(XWPFDocument document, MinutesViewModelMapper.MinutesViewModel viewModel) {

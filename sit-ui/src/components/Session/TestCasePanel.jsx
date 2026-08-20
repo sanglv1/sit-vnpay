@@ -15,7 +15,7 @@ const INPUT_KEYS_PAY = [
   'vnp_TxnRef', 'vnp_TmnCode', 'vnp_TransactionNo', 'vnp_ResponseCode', 'vnp_TransactionStatus',
 ];
 const INPUT_KEYS_SNAKE = [
-  'vnp_txn_ref', 'vnp_tmn_code', 'vnp_transaction_no', 'vnp_response_code', 'vnp_transaction_status',
+  'vnp_txn_ref', 'vnp_tmn_code', 'vnp_app_user_id', 'vnp_transaction_no', 'vnp_response_code', 'vnp_transaction_status',
 ];
 
 const caseTitle = (label) => label.replace(/\s*\(Case\s+\d+\)\s*$/i, '');
@@ -58,6 +58,7 @@ const TestCasePanel = ({
   autoTotal,
   onRunCase,
   runningCase,
+  recurringAppUserId,
 }) => {
   const { t } = useI18n();
 
@@ -67,6 +68,9 @@ const TestCasePanel = ({
 
   const formatInputBlock = (run) => {
     const params = parseParams(run.requestParams);
+    if (run?.flow === 'RECURRING' && recurringAppUserId?.trim()) {
+      params.vnp_app_user_id = recurringAppUserId.trim();
+    }
     const keys = inputKeysForRun(run);
     return keys
       .map((key) => `${key}: ${params[key] ?? '—'}`)
@@ -211,7 +215,7 @@ const TestCasePanel = ({
                 <div className="tc-debug-section">
                   <div className="tc-debug-label">{t('sessions.tcRequest')}</div>
                   <pre className="code-block tc-debug-code tc-debug-code-wrap">
-                    {formatCallbackRequestLog(selectedRun) || t('tests.emptyResponse')}
+                    {formatCallbackRequestLog(selectedRun, recurringAppUserId) || t('tests.emptyResponse')}
                   </pre>
                 </div>
 

@@ -2,6 +2,7 @@ package com.vnpay.sit.partner.service;
 
 import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
+import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.partner.dto.PartnerForm;
 import com.vnpay.sit.partner.entity.PartnerConfig;
 import com.vnpay.sit.partner.repository.PartnerConfigRepository;
@@ -73,6 +74,10 @@ public class PartnerService {
         entity.setIpnUrl(form.getIpnUrl().trim());
         entity.setNote(form.getNote());
         entity.setActive(form.isActive());
+        if (form.getRecurringAppUserId() != null) {
+            String appUserId = form.getRecurringAppUserId().trim();
+            entity.setRecurringAppUserId(appUserId.isEmpty() ? null : appUserId);
+        }
         return repository.save(entity);
     }
 
@@ -92,8 +97,22 @@ public class PartnerService {
         form.setReturnUrl(entity.getReturnUrl());
         form.setIpnUrl(entity.getIpnUrl());
         form.setNote(entity.getNote());
+        form.setRecurringAppUserId(entity.getRecurringAppUserId());
         form.setActive(entity.isActive());
         return form;
+    }
+
+    @Transactional
+    public void saveRecurringAppUserId(Long partnerId, String recurringAppUserId, SitUserPrincipal principal) {
+        if (partnerId == null || !StringUtils.hasText(recurringAppUserId)) {
+            return;
+        }
+        PartnerConfig partner = requireAccessible(partnerId, principal);
+        if (partner.getFlow() != PaymentFlow.RECURRING) {
+            return;
+        }
+        partner.setRecurringAppUserId(recurringAppUserId.trim());
+        repository.save(partner);
     }
 
     private List<PartnerConfig> findCreatedByPrincipal(SitUserPrincipal principal) {

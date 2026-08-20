@@ -359,6 +359,8 @@ class MinutesExportApiIntegrationTest {
         partner = partnerConfigRepository.save(partner);
 
         TestSession session = createSession(partner);
+        session.setRecurringAppUserId("merchant_user_42");
+        session = testSessionRepository.save(session);
         saveSnakeCaseRun(session, partner, PaymentFlow.RECURRING, TestCaseType.SUCCESS, true, "REC_OK", "00",
                 recurringParams("REC_OK", "TMNREC", "00", "00"),
                 "{\"RspCode\":\"00\",\"Message\":\"Confirm successful\"}");
@@ -400,6 +402,8 @@ class MinutesExportApiIntegrationTest {
         assertThat(allText).contains("Phiên bản tích hợp: 2.1.1");
         assertThat(allText).contains("REC_OK");
         assertThat(allText).contains("vnp_txn_ref (order.orderReference): REC_OK");
+        assertThat(allText).contains("merchant_user_42");
+        assertThat(allText).doesNotContain("SIT_USER");
         assertThat(allText).contains("rspCode: \"00\"");
         assertThat(allText).contains("rspCode: \"01\"");
         assertThat(allText).contains("Message: \"Order not found\"");
@@ -662,6 +666,7 @@ class MinutesExportApiIntegrationTest {
         sb.append("\"vnp_txn_ref\":\"").append(txnRef).append("\"");
         sb.append(",\"vnp_tmn_code\":\"").append(tmnCode).append("\"");
         sb.append(",\"vnp_command\":\"").append(command).append("\"");
+        sb.append(",\"vnp_app_user_id\":\"SIT_USER\"");
         sb.append(",\"vnp_order_info\":\"SIT test ").append(txnRef).append("\"");
         sb.append(",\"vnp_curr_code\":\"VND\"");
         if (responseCode != null) {
