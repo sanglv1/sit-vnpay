@@ -68,8 +68,9 @@ public class ManualAcceptanceService {
         TestSession session = resolveSession(form, principal);
 
         ManualAcceptance entity = resolveEntity(form, session, principal);
-        if (entity.getSessionId() != null) {
-            accessControlService.requireSessionAccess(entity.getSessionId(), principal);
+        // Quyền theo phiên đang lưu — không dùng entity.sessionId (bản ghi mới còn null).
+        if (session != null) {
+            accessControlService.requireSessionAccess(session, principal);
         } else {
             accessControlService.requireAdmin(principal);
         }

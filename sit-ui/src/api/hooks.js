@@ -92,9 +92,14 @@ export function useCreateSessionMutation() {
 }
 
 export function useSaveSessionTestInputMutation(sessionId) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (data) => sitApi.sessions.saveTestInput(sessionId, data),
     meta: { silent: true },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sessions.workspace(sessionId) });
+      qc.invalidateQueries({ queryKey: queryKeys.partners.all });
+    },
   });
 }
 

@@ -61,7 +61,6 @@ class ManualAcceptanceServiceTest {
     when(partnerService.requireAccessible(1L, principal)).thenReturn(partner);
     when(accessControlService.requireSession(5L)).thenReturn(session);
     doNothing().when(accessControlService).requireSessionAccess(session, principal);
-    doNothing().when(accessControlService).requireAdmin(principal);
     when(repository.findTopBySessionIdOrderByUpdatedAtDesc(5L))
         .thenReturn(Optional.empty());
     when(repository.save(any(ManualAcceptance.class)))
@@ -78,8 +77,9 @@ class ManualAcceptanceServiceTest {
     assertThat(saved.getWhitelistIpPassed()).isTrue();
     assertThat(saved.getLogStoragePassed()).isFalse();
     assertThat(saved.getNote()).isEqualTo("QC note");
-    verify(accessControlService).requireSessionAccess(session, principal);
-    verify(accessControlService).requireAdmin(principal);
+    verify(accessControlService, org.mockito.Mockito.atLeastOnce())
+        .requireSessionAccess(session, principal);
+    verify(accessControlService, never()).requireAdmin(principal);
   }
 
   @Test
@@ -89,8 +89,8 @@ class ManualAcceptanceServiceTest {
     ManualAcceptance existing = new ManualAcceptance();
     existing.setId(30L);
     existing.setSessionId(5L);
-    existing.setReturnSuccessImage("data:image/png;base64,EXISTING_OK");
-    existing.setReturnFailedImage("data:image/png;base64,EXISTING_FAIL");
+    existing.setReturnSuccessImage(dataUrlForBytes(16));
+    existing.setReturnFailedImage(dataUrlForBytes(24));
 
     ManualAcceptanceForm form = form(1L, 5L);
     form.setId(30L);
@@ -107,8 +107,8 @@ class ManualAcceptanceServiceTest {
 
     ManualAcceptance saved = manualAcceptanceService.save(form, principal);
 
-    assertThat(saved.getReturnSuccessImage()).isEqualTo("data:image/png;base64,EXISTING_OK");
-    assertThat(saved.getReturnFailedImage()).isEqualTo("data:image/png;base64,EXISTING_FAIL");
+    assertThat(saved.getReturnSuccessImage()).isEqualTo(dataUrlForBytes(16));
+    assertThat(saved.getReturnFailedImage()).isEqualTo(dataUrlForBytes(24));
   }
 
   @Test
@@ -122,7 +122,6 @@ class ManualAcceptanceServiceTest {
     when(partnerService.requireAccessible(1L, principal)).thenReturn(partner);
     when(accessControlService.requireSession(5L)).thenReturn(session);
     doNothing().when(accessControlService).requireSessionAccess(session, principal);
-    doNothing().when(accessControlService).requireSessionAccess(5L, principal);
     when(repository.findTopBySessionIdOrderByUpdatedAtDesc(5L))
         .thenReturn(Optional.empty());
 
@@ -173,8 +172,10 @@ class ManualAcceptanceServiceTest {
 
     assertThat(saved.getId()).isEqualTo(20L);
     assertThat(saved.getExceptionHandled()).isTrue();
-    verify(accessControlService, org.mockito.Mockito.times(2))
-        .requireSessionAccess(5L, principal);
+    verify(accessControlService).requireSessionAccess(5L, principal);
+    verify(accessControlService, org.mockito.Mockito.atLeastOnce())
+        .requireSessionAccess(session, principal);
+    verify(accessControlService, never()).requireAdmin(principal);
   }
 
   @Test

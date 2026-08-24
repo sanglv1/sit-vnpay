@@ -483,32 +483,55 @@ public class TestExecutionService {
         if (partner.getFlow() != PaymentFlow.RECURRING) {
             return null;
         }
-        if (StringUtils.hasText(form.getRecurringAppUserId())) {
-            return form.getRecurringAppUserId().trim();
-        }
-        String fromSession = sessionAppUserId(form.getSessionId());
-        if (StringUtils.hasText(fromSession)) {
-            return fromSession;
-        }
-        return StringUtils.hasText(partner.getRecurringAppUserId())
-                ? partner.getRecurringAppUserId().trim()
-                : null;
+        return pickRecurringAppUserId(
+                form.getRecurringAppUserId(),
+                sessionAppUserId(form.getSessionId()),
+                partner.getRecurringAppUserId()
+        );
     }
 
     private String resolveRecurringAppUserId(PartnerConfig partner, TestRunForm form) {
         if (partner.getFlow() != PaymentFlow.RECURRING) {
             return null;
         }
-        if (StringUtils.hasText(form.getRecurringAppUserId())) {
-            return form.getRecurringAppUserId().trim();
+        return pickRecurringAppUserId(
+                form.getRecurringAppUserId(),
+                sessionAppUserId(form.getSessionId()),
+                partner.getRecurringAppUserId()
+        );
+    }
+
+    private static String pickRecurringAppUserId(String fromForm, String fromSession, String fromPartner) {
+        String form = trimToNull(fromForm);
+        String session = trimToNull(fromSession);
+        String partner = trimToNull(fromPartner);
+        if (isCustomAppUserId(form)) {
+            return form;
         }
-        String fromSession = sessionAppUserId(form.getSessionId());
-        if (StringUtils.hasText(fromSession)) {
-            return fromSession;
+        if (isCustomAppUserId(partner)) {
+            return partner;
         }
-        return StringUtils.hasText(partner.getRecurringAppUserId())
-                ? partner.getRecurringAppUserId().trim()
-                : null;
+        if (form != null) {
+            return form;
+        }
+        if (isCustomAppUserId(session)) {
+            return session;
+        }
+        if (partner != null) {
+            return partner;
+        }
+        return session;
+    }
+
+    private static boolean isCustomAppUserId(String value) {
+        return value != null && !"SIT_USER".equals(value);
+    }
+
+    private static String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String sessionAppUserId(Long sessionId) {

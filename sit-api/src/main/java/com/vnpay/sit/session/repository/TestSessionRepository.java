@@ -17,6 +17,8 @@ public interface TestSessionRepository extends JpaRepository<TestSession, Long>,
 
     List<TestSession> findByCreatedByEmailIgnoreCaseOrderByCreatedAtDesc(String createdByEmail);
 
+    List<TestSession> findByPartnerId(Long partnerId);
+
     long countByCreatedAtGreaterThanEqual(LocalDateTime createdAt);
 
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(LocalDateTime from, LocalDateTime to);

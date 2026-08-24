@@ -30,6 +30,10 @@ public class TestSessionResponse {
     private final String createdByEmail;
 
     public static TestSessionResponse from(TestSession entity, int autoPassed, int autoTotal) {
+        return from(entity, autoPassed, autoTotal, entity.getRecurringAppUserId());
+    }
+
+    public static TestSessionResponse from(TestSession entity, int autoPassed, int autoTotal, String recurringAppUserId) {
         return TestSessionResponse.builder()
                 .id(entity.getId())
                 .partnerId(entity.getPartnerId())
@@ -46,7 +50,7 @@ public class TestSessionResponse {
                 .failedTxnRef(entity.getFailedTxnRef())
                 .failedAmountVnd(entity.getFailedAmountVnd())
                 .wrongAmountVnd(entity.getWrongAmountVnd())
-                .recurringAppUserId(entity.getRecurringAppUserId())
+                .recurringAppUserId(recurringAppUserId)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .createdByEmail(entity.getCreatedByEmail())

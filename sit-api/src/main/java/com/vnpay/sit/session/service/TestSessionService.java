@@ -145,11 +145,7 @@ public class TestSessionService {
             session.setWrongAmountVnd(form.getWrongAmountVnd());
         }
         if (form.getRecurringAppUserId() != null) {
-            String appUserId = form.getRecurringAppUserId().trim();
-            session.setRecurringAppUserId(appUserId.isEmpty() ? null : appUserId);
-            if (!appUserId.isEmpty()) {
-                partnerService.saveRecurringAppUserId(session.getPartnerId(), appUserId, principal);
-            }
+            persistRecurringAppUserId(session, form.getRecurringAppUserId(), principal);
         }
 
         sessionRepository.save(session);
@@ -163,9 +159,20 @@ public class TestSessionService {
         TestSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiên kiểm thử"));
         accessControlService.requireSessionAccess(session, principal);
-        session.setRecurringAppUserId(recurringAppUserId.trim());
+        persistRecurringAppUserId(session, recurringAppUserId, principal);
         sessionRepository.save(session);
-        partnerService.saveRecurringAppUserId(session.getPartnerId(), recurringAppUserId.trim(), principal);
+    }
+
+    private void persistRecurringAppUserId(TestSession session, String rawAppUserId, SitUserPrincipal principal) {
+        String appUserId = rawAppUserId == null ? "" : rawAppUserId.trim();
+        session.setRecurringAppUserId(appUserId.isEmpty() ? null : appUserId);
+        if (appUserId.isEmpty()) {
+            return;
+        }
+        partnerService.saveRecurringAppUserId(session.getPartnerId(), appUserId, principal);
+        for (TestSession other : sessionRepository.findByPartnerId(session.getPartnerId())) {
+            other.setRecurringAppUserId(appUserId);
+        }
     }
 
     @Transactional
@@ -210,7 +217,18 @@ public class TestSessionService {
 
     private TestSessionResponse toResponse(TestSession session, java.util.Map<Long, Integer> passedBySession) {
         int autoPassed = passedBySession.getOrDefault(session.getId(), 0);
-        return TestSessionResponse.from(session, autoPassed, AUTO_CASES.size());
+        String appUserId = session.getRecurringAppUserId();
+        if (!StringUtils.hasText(appUserId) || "SIT_USER".equals(appUserId.trim())) {
+            String fromPartner = partnerService.findById(session.getPartnerId())
+                    .map(PartnerConfig::getRecurringAppUserId)
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .orElse(null);
+            if (StringUtils.hasText(fromPartner)) {
+                appUserId = fromPartner;
+            }
+        }
+        return TestSessionResponse.from(session, autoPassed, AUTO_CASES.size(), appUserId);
     }
 
     private java.util.Map<Long, Integer> countPassedAutoCases(List<Long> sessionIds) {

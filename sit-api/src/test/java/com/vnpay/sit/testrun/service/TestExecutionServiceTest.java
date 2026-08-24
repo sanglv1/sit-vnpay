@@ -15,6 +15,7 @@ import com.vnpay.sit.auth.AccessControlService;
 import com.vnpay.sit.auth.SitUserPrincipal;
 import com.vnpay.sit.partner.service.PartnerService;
 import com.vnpay.sit.runner.CallbackHttpRunner;
+import com.vnpay.sit.runner.PaymentLinkCallbackHttpRunner;
 import com.vnpay.sit.testrun.dto.TestRunForm;
 import com.vnpay.sit.testrun.dto.TestSuiteForm;
 import com.vnpay.sit.testrun.entity.TestRun;
@@ -56,6 +57,9 @@ class TestExecutionServiceTest {
     private CallbackHttpRunner httpRunner;
 
     @Mock
+    private PaymentLinkCallbackHttpRunner paymentLinkHttpRunner;
+
+    @Mock
     private AccessControlService accessControlService;
 
     @Mock
@@ -76,6 +80,7 @@ class TestExecutionServiceTest {
                 partnerService,
                 testRunRepository,
                 httpRunner,
+                paymentLinkHttpRunner,
                 objectMapper,
                 accessControlService,
                 sessionRepository,

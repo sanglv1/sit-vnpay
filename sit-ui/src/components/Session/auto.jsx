@@ -120,6 +120,18 @@ const validateOrderForCase = (caseValue, values, t) => {
   return null;
 };
 
+const isUnsetAppUserId = (value) => !value?.trim() || value.trim() === 'SIT_USER';
+
+const resolveRecurringAppUserId = (sessionValue, partnerValue) => {
+  if (!isUnsetAppUserId(sessionValue)) {
+    return sessionValue.trim();
+  }
+  if (!isUnsetAppUserId(partnerValue)) {
+    return partnerValue.trim();
+  }
+  return sessionValue?.trim() || partnerValue?.trim() || 'SIT_USER';
+};
+
 const toTestInputPayload = (values, partnerFlow) => ({
   pendingTxnRef: values.pendingTxnRef?.trim() ?? '',
   pendingAmountVnd: values.pendingAmountVnd ? Number(values.pendingAmountVnd) : null,
@@ -249,9 +261,10 @@ const SessionAuto = () => {
       wrongAmountVnd: session.wrongAmountVnd ?? '',
       testCase: 'SUCCESS',
       recurringIpnCommand: 'RECURRING',
-      recurringAppUserId: session.recurringAppUserId
-        || workspace.partnerRecurringAppUserId
-        || 'SIT_USER',
+      recurringAppUserId: resolveRecurringAppUserId(
+        session.recurringAppUserId,
+        workspace.partnerRecurringAppUserId,
+      ),
       tokenIpnCommand: 'PAY_AND_CREATE',
       preAuthIpnCommand: 'CREATE_TOKEN',
     });

@@ -672,9 +672,13 @@ final class TokenRecurringMinutesDocumentFiller {
         if (ctx == null || ctx.flow() != PaymentFlow.RECURRING || params.isEmpty()) {
             return;
         }
-        String appUserId = ctx.getSession() != null ? ctx.getSession().getRecurringAppUserId() : null;
-        if (appUserId == null || appUserId.isBlank()) {
-            appUserId = ctx.getPartner() != null ? ctx.getPartner().getRecurringAppUserId() : null;
+        String sessionId = ctx.getSession() != null ? ctx.getSession().getRecurringAppUserId() : null;
+        String partnerId = ctx.getPartner() != null ? ctx.getPartner().getRecurringAppUserId() : null;
+        String appUserId = sessionId;
+        if (appUserId == null || appUserId.isBlank() || "SIT_USER".equals(appUserId.trim())) {
+            if (partnerId != null && !partnerId.isBlank()) {
+                appUserId = partnerId;
+            }
         }
         if (appUserId == null || appUserId.isBlank()) {
             return;
