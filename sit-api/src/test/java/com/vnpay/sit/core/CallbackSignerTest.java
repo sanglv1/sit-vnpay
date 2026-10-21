@@ -4,6 +4,8 @@ import com.vnpay.sit.model.PaymentFlow;
 import com.vnpay.sit.model.TestCaseType;
 import org.junit.jupiter.api.Test;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -54,6 +56,29 @@ class CallbackSignerTest {
     CallbackSigner.attachHash(params, SECRET, PaymentFlow.INSTALMENT);
     assertThat(params).containsKey("vnp_SecureHash");
     assertThat(params.get("vnp_SecureHash")).hasSize(128);
+  }
+
+  @Test
+  void instalment_sign_shouldUrlEncodeOrderInfoSpace() throws Exception {
+    Map<String, String> params = new LinkedHashMap<>();
+    params.put("vnp_TmnCode", "TMN01");
+    params.put("vnp_TxnRef", "INS001");
+    params.put("vnp_Amount", "10000000");
+    params.put("vnp_OrderInfo", "SIT test INS001");
+    params.put("vnp_ResponseCode", "00");
+
+    String encodedOrderInfo = URLEncoder.encode("SIT test INS001", StandardCharsets.US_ASCII);
+    assertThat(encodedOrderInfo).isEqualTo("SIT+test+INS001");
+    String hashData = "vnp_Amount=10000000"
+        + "&vnp_OrderInfo=" + encodedOrderInfo
+        + "&vnp_ResponseCode=00"
+        + "&vnp_TmnCode=TMN01"
+        + "&vnp_TxnRef=INS001";
+
+    assertThat(CallbackSigner.sign(params, SECRET, PaymentFlow.INSTALMENT))
+        .isEqualTo(VnPayHashUtils.hmacSha512(SECRET, hashData));
+    assertThat(CallbackSigner.sign(params, SECRET, PaymentFlow.PAY))
+        .isEqualTo(VnPayHashUtils.hmacSha512(SECRET, hashData));
   }
 
   @Test

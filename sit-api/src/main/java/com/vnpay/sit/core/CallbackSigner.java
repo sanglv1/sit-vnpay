@@ -32,7 +32,9 @@ public final class CallbackSigner {
 
     private static SigningProfile profileFor(PaymentFlow flow) {
         return switch (flow) {
-            case PAY, INSTALMENT, QR_DIRECT -> new SigningProfile(StandardCharsets.UTF_8, true, false, false,
+            // Same rule as the VNPay IPN sample: sort fields, URL-encode values only
+            // (space becomes '+'), then HMAC-SHA512. Raw spaces make every case return RspCode 97.
+            case PAY, INSTALMENT, QR_DIRECT -> new SigningProfile(StandardCharsets.US_ASCII, false, true, false,
                     "vnp_SecureHash", "vnp_SecureHashType");
             case TOKEN, RECURRING -> new SigningProfile(StandardCharsets.US_ASCII, false, true, false,
                     "vnp_secure_hash", "vnp_secure_hash_type");
