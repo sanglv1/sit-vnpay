@@ -108,7 +108,7 @@ public class PartnerService {
             return;
         }
         PartnerConfig partner = requireAccessible(partnerId, principal);
-        if (partner.getFlow() != PaymentFlow.RECURRING) {
+        if (!partner.getFlow().usesAppUserId()) {
             return;
         }
         partner.setRecurringAppUserId(recurringAppUserId.trim());

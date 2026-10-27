@@ -665,11 +665,11 @@ final class TokenRecurringMinutesDocumentFiller {
     }
 
     /**
-     * Phiên đã chạy IPN vẫn có thể gán lại vnp_app_user_id khi xuất biên bản,
+     * Phiên TOKEN/RECURRING đã chạy IPN vẫn có thể gán lại vnp_app_user_id khi xuất biên bản,
      * không cần chạy lại suite (tránh RspCode 02).
      */
     private void applySessionRecurringAppUserId(Map<String, String> params, MinutesExportContext ctx) {
-        if (ctx == null || ctx.flow() != PaymentFlow.RECURRING || params.isEmpty()) {
+        if (ctx == null || !ctx.flow().usesAppUserId() || params.isEmpty()) {
             return;
         }
         String sessionId = ctx.getSession() != null ? ctx.getSession().getRecurringAppUserId() : null;

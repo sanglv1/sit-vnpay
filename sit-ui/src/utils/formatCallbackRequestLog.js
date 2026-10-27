@@ -33,7 +33,7 @@ export const formatCallbackRequestLog = (run, recurringAppUserId) => {
     return run.requestParams || '';
   }
   const formatted = url.startsWith('GET ') ? url : `GET ${url}`;
-  if (run.flow === 'RECURRING' && recurringAppUserId?.trim()) {
+  if ((run.flow === 'RECURRING' || run.flow === 'TOKEN') && recurringAppUserId?.trim()) {
     return overlayQueryParam(formatted, 'vnp_app_user_id', recurringAppUserId.trim());
   }
   return formatted;

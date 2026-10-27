@@ -18,4 +18,9 @@ public enum PaymentFlow {
     public String getLabel() {
         return label;
     }
+
+    /** TOKEN và RECURRING gửi {@code vnp_app_user_id} lấy từ Terminal/phiên. */
+    public boolean usesAppUserId() {
+        return this == TOKEN || this == RECURRING;
+    }
 }

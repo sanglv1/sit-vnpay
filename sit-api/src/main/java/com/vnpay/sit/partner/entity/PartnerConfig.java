@@ -39,7 +39,7 @@ public class PartnerConfig {
     @Column(length = 500)
     private String note;
 
-    /** Chỉ dùng luồng RECURRING — map sang vnp_app_user_id cho mọi phiên của Terminal. */
+    /** TOKEN và RECURRING — map sang vnp_app_user_id cho mọi phiên của Terminal. */
     @Column(name = "recurring_app_user_id", length = 100)
     private String recurringAppUserId;
 

@@ -231,7 +231,7 @@ public class TestExecutionService {
                 form.getWrongAmountVnd(),
                 principal
         );
-        if (partner.getFlow() == PaymentFlow.RECURRING) {
+        if (partner.getFlow().usesAppUserId()) {
             testSessionService.saveRecurringAppUserId(
                     form.getSessionId(),
                     resolveRecurringAppUserId(partner, form),
@@ -480,7 +480,7 @@ public class TestExecutionService {
     }
 
     private String resolveSuiteRecurringAppUserId(PartnerConfig partner, TestSuiteForm form) {
-        if (partner.getFlow() != PaymentFlow.RECURRING) {
+        if (!partner.getFlow().usesAppUserId()) {
             return null;
         }
         return pickRecurringAppUserId(
@@ -491,7 +491,7 @@ public class TestExecutionService {
     }
 
     private String resolveRecurringAppUserId(PartnerConfig partner, TestRunForm form) {
-        if (partner.getFlow() != PaymentFlow.RECURRING) {
+        if (!partner.getFlow().usesAppUserId()) {
             return null;
         }
         return pickRecurringAppUserId(

@@ -104,7 +104,7 @@ public class TestSessionService {
         if (StringUtils.hasText(createdByEmail)) {
             session.setCreatedByEmail(createdByEmail.trim().toLowerCase());
         }
-        if (partner.getFlow() == PaymentFlow.RECURRING
+        if (partner.getFlow().usesAppUserId()
                 && StringUtils.hasText(partner.getRecurringAppUserId())) {
             session.setRecurringAppUserId(partner.getRecurringAppUserId().trim());
         }

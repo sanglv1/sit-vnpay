@@ -41,7 +41,7 @@ const PartnerForm = () => {
     const payload = {
       ...values,
       returnUrl: values.returnUrl?.trim() ?? '',
-      recurringAppUserId: values.flow === 'RECURRING'
+      recurringAppUserId: values.flow === 'RECURRING' || values.flow === 'TOKEN'
         ? (values.recurringAppUserId?.trim() || '')
         : undefined,
       active: values.active === true || values.active === 'true',
@@ -101,7 +101,7 @@ const PartnerForm = () => {
                 <label className="form-label">{t('partners.secretKey')} *</label>
                 <input className="form-control" {...register('secretKey', { required: t('common.required') })} />
               </div>
-              {watch('flow') === 'RECURRING' && (
+              {(watch('flow') === 'RECURRING' || watch('flow') === 'TOKEN') && (
                 <div className="col-12">
                   <label className="form-label">{t('partners.recurringAppUserId')}</label>
                   <input

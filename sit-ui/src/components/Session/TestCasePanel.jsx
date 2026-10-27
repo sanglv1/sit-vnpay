@@ -68,7 +68,7 @@ const TestCasePanel = ({
 
   const formatInputBlock = (run) => {
     const params = parseParams(run.requestParams);
-    if (run?.flow === 'RECURRING' && recurringAppUserId?.trim()) {
+    if ((run?.flow === 'RECURRING' || run?.flow === 'TOKEN') && recurringAppUserId?.trim()) {
       params.vnp_app_user_id = recurringAppUserId.trim();
     }
     const keys = inputKeysForRun(run);

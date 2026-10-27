@@ -120,6 +120,8 @@ const validateOrderForCase = (caseValue, values, t) => {
   return null;
 };
 
+const flowUsesAppUserId = (flow) => flow === 'RECURRING' || flow === 'TOKEN';
+
 const isUnsetAppUserId = (value) => !value?.trim() || value.trim() === 'SIT_USER';
 
 const resolveRecurringAppUserId = (sessionValue, partnerValue) => {
@@ -140,7 +142,7 @@ const toTestInputPayload = (values, partnerFlow) => ({
   confirmedTxnRef: values.confirmedTxnRef?.trim() ?? '',
   confirmedAmountVnd: values.confirmedAmountVnd ? Number(values.confirmedAmountVnd) : null,
   wrongAmountVnd: values.wrongAmountVnd ? Number(values.wrongAmountVnd) : null,
-  ...(partnerFlow === 'RECURRING'
+  ...(flowUsesAppUserId(partnerFlow)
     ? { recurringAppUserId: values.recurringAppUserId?.trim() ?? '' }
     : {}),
 });
@@ -308,7 +310,7 @@ const SessionAuto = () => {
     if (metadata?.partnerFlow === 'RECURRING' && values.recurringIpnCommand) {
       payload.recurringIpnCommand = values.recurringIpnCommand;
     }
-    if (metadata?.partnerFlow === 'RECURRING') {
+    if (flowUsesAppUserId(metadata?.partnerFlow)) {
       payload.recurringAppUserId = values.recurringAppUserId?.trim() || 'SIT_USER';
     }
     if (metadata?.partnerFlow === 'TOKEN' && values.tokenIpnCommand) {
@@ -395,7 +397,7 @@ const SessionAuto = () => {
           ...(metadata?.partnerFlow === 'RECURRING' && latest.recurringIpnCommand
             ? { recurringIpnCommand: latest.recurringIpnCommand }
             : {}),
-          ...(metadata?.partnerFlow === 'RECURRING'
+          ...(flowUsesAppUserId(metadata?.partnerFlow)
             ? { recurringAppUserId: latest.recurringAppUserId?.trim() || 'SIT_USER' }
             : {}),
           ...(metadata?.partnerFlow === 'TOKEN' && latest.tokenIpnCommand
@@ -552,7 +554,7 @@ const SessionAuto = () => {
             <p className="order-input-footnote mb-0">{t('sessions.orderTxnRefFootnote')}</p>
           </div>
 
-          {metadata?.partnerFlow === 'RECURRING' && (
+          {flowUsesAppUserId(metadata?.partnerFlow) && (
             <div className="order-input-group mb-3">
               <label className="form-label small mb-1">{t('sessions.recurringAppUserIdTitle')}</label>
               <input

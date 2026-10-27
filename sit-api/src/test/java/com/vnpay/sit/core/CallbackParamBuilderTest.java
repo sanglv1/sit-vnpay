@@ -205,6 +205,40 @@ class CallbackParamBuilderTest {
     }
 
     @Test
+    void token_success_shouldUseCustomAppUserId() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.TOKEN,
+                TestCaseType.SUCCESS,
+                "TMN03",
+                "TOK001",
+                75_000L,
+                null,
+                null,
+                TokenIpnCommand.PAY_AND_CREATE,
+                null,
+                "merchant_user_42");
+
+        assertThat(params).containsEntry("vnp_app_user_id", "merchant_user_42");
+    }
+
+    @Test
+    void token_success_blankAppUserId_shouldDefaultToSitUser() {
+        Map<String, String> params = CallbackParamBuilder.build(
+                PaymentFlow.TOKEN,
+                TestCaseType.SUCCESS,
+                "TMN03",
+                "TOK001",
+                75_000L,
+                null,
+                null,
+                TokenIpnCommand.TOKEN_PAY,
+                null,
+                "   ");
+
+        assertThat(params).containsEntry("vnp_app_user_id", "SIT_USER");
+    }
+
+    @Test
     void token_success_defaultCommand_shouldMatchPayAndCreateIpn() {
         Map<String, String> params = CallbackParamBuilder.build(
                 PaymentFlow.TOKEN, TestCaseType.SUCCESS, "TMN03", "TOK001", 75_000L, null);

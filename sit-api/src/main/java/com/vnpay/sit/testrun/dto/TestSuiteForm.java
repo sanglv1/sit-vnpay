@@ -38,7 +38,7 @@ public class TestSuiteForm {
     /** Chỉ áp dụng khi partner flow = RECURRING; null → mặc định {@code recurring}. */
     private RecurringIpnCommand recurringIpnCommand;
 
-    /** Chỉ áp dụng khi partner flow = RECURRING; null/blank → mặc định {@code SIT_USER}. */
+    /** TOKEN và RECURRING; null/blank → mặc định {@code SIT_USER}. */
     @JsonAlias({"appUserId", "vnp_app_user_id"})
     private String recurringAppUserId;
 

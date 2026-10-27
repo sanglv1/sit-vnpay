@@ -31,7 +31,7 @@ public class PartnerForm {
 
     private String note;
 
-    /** Chỉ áp dụng luồng RECURRING. */
+    /** TOKEN và RECURRING. */
     private String recurringAppUserId;
 
     private boolean active = true;

@@ -93,7 +93,7 @@ public final class CallbackParamBuilder {
             case INSTALMENT -> putPascalCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase, "VISA", null);
             case TOKEN -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
-                putTokenIpnFields(params, txnRef, testCase, tokenCommand);
+                putTokenIpnFields(params, txnRef, testCase, tokenCommand, recurringAppUserId);
             }
             case RECURRING -> {
                 putSnakeCaseIpnFields(params, tmnCode, txnRef, amountMinor, now, testCase);
@@ -168,10 +168,12 @@ public final class CallbackParamBuilder {
             Map<String, String> params,
             String txnRef,
             TestCaseType testCase,
-            TokenIpnCommand tokenCommand
+            TokenIpnCommand tokenCommand,
+            String appUserId
     ) {
         TokenIpnCommand command = tokenCommand != null ? tokenCommand : TokenIpnCommand.defaultForIpnSuite();
         putSnakeCaseCommandFields(params, txnRef, command.getCommandValue());
+        params.put("vnp_app_user_id", resolveAppUserId(appUserId));
         if (testCase == TestCaseType.SUCCESS) {
             params.put("vnp_token", "SIT_TOKEN_" + txnRef);
             if (command != TokenIpnCommand.TOKEN_REMOVE) {
@@ -212,7 +214,7 @@ public final class CallbackParamBuilder {
                 ? recurringCommand
                 : RecurringIpnCommand.defaultForIpnSuite();
         params.put("vnp_command", command.getCommandValue());
-        params.put("vnp_app_user_id", resolveRecurringAppUserId(recurringAppUserId));
+        params.put("vnp_app_user_id", resolveAppUserId(recurringAppUserId));
         params.put("vnp_order_info", "SIT test " + txnRef);
         params.put("vnp_curr_code", "VND");
         if (testCase == TestCaseType.SUCCESS) {
@@ -225,11 +227,11 @@ public final class CallbackParamBuilder {
         }
     }
 
-    private static String resolveRecurringAppUserId(String recurringAppUserId) {
-        if (recurringAppUserId == null || recurringAppUserId.isBlank()) {
+    private static String resolveAppUserId(String appUserId) {
+        if (appUserId == null || appUserId.isBlank()) {
             return SIT_APP_USER_ID;
         }
-        return recurringAppUserId.trim();
+        return appUserId.trim();
     }
 
     private static String formatTokenExpDate() {
