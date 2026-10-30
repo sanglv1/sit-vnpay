@@ -3,7 +3,7 @@ export const LANG_KEY = 'sit_locale';
 export const messages = {
   vi: {
     login: {
-      title: 'VNPAY SIT Portal',
+      title: 'SIT Portal',
       subtitle: 'Hệ thống Nghiệm thu Cổng thanh toán',
       email: 'Email',
       password: 'Mật khẩu',
@@ -23,7 +23,7 @@ export const messages = {
       guide: 'Hướng dẫn',
     },
     header: {
-      title: 'VNPAY SIT Portal',
+      title: 'SIT Portal',
       subtitle: 'Hệ thống Nghiệm thu Cổng thanh toán',
       logout: 'Đăng xuất',
     },
@@ -439,7 +439,7 @@ export const messages = {
   },
   en: {
     login: {
-      title: 'VNPAY SIT Portal',
+      title: 'SIT Portal',
       subtitle: 'Payment Gateway Acceptance System',
       email: 'Email',
       password: 'Password',
@@ -459,7 +459,7 @@ export const messages = {
       guide: 'Guide',
     },
     header: {
-      title: 'VNPAY SIT Portal',
+      title: 'SIT Portal',
       subtitle: 'Payment Gateway Acceptance System',
       logout: 'Sign out',
     },

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="VNPAY SIT">
+  <defs>
+    <linearGradient id="sit-bg" x1="4" y1="0" x2="60" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#005baa"/>
+      <stop offset="1" stop-color="#009edb"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#sit-bg)"/>
+  <path d="M11 48V33C11 14 53 14 53 33V48" fill="none" stroke="#fff" stroke-opacity="0.38" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M17 46V34C17 18 47 18 47 34V46" fill="none" stroke="#fff" stroke-width="3.8" stroke-linecap="round"/>
+  <path d="M26 34.2 31 39.4 40.2 28.2" fill="none" stroke="#fff" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

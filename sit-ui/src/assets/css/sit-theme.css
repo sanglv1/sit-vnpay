@@ -154,7 +154,7 @@ body.aside-minimize .sit-aside { width: 70px; }
 body.aside-minimize .sit-aside .menu-text { display: none; }
 body.aside-minimize .sit-brand { width: 70px; padding: 0 14px; justify-content: center; }
 body.aside-minimize .sit-brand-text { display: none; }
-body.aside-minimize .sit-brand-icon { height: 32px; }
+body.aside-minimize .sit-brand-icon { height: 32px; width: auto; }
 body.aside-minimize .sit-wrapper { margin-left: 70px; }
 
 .menu-nav { list-style: none; padding: 16px 12px; margin: 0; }
@@ -1508,29 +1508,38 @@ body.aside-minimize .sit-wrapper { margin-left: 70px; }
     padding: 24px;
     position: relative;
 }
-.login-lang {
-    position: absolute;
-    top: 20px;
-    right: 24px;
-    z-index: 2;
-}
 .login-card {
     width: 100%;
-    max-width: 420px;
+    max-width: 480px;
     background: #fff;
     border-radius: 12px;
-    padding: 32px;
+    padding: 20px 40px 40px;
     box-shadow: 0 12px 40px rgba(0, 91, 170, 0.12);
     border: 1px solid var(--vnpay-border);
 }
-.login-brand { text-align: center; margin-bottom: 20px; }
-.login-logo { height: 56px; width: auto; max-width: 100%; }
+.login-lang {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+.login-brand {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+.login-logo {
+    height: 52px;
+    width: auto;
+    max-width: 100%;
+    display: block;
+}
 .login-title {
     text-align: center;
-    font-size: 20px;
+    font-size: 24px;
     font-weight: 700;
-    margin: 0 0 6px;
+    margin: 0 0 8px;
     color: var(--vnpay-brand);
+    letter-spacing: 0.01em;
 }
 .login-subtitle {
     text-align: center;

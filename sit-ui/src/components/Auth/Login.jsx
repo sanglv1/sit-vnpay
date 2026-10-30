@@ -53,10 +53,10 @@ const Login = () => {
 
   return (
     <div className="login-page">
-      <div className="login-lang">
-        <LanguageSwitcher />
-      </div>
       <div className="login-card">
+        <div className="login-lang">
+          <LanguageSwitcher />
+        </div>
         <div className="login-brand">
           <img src={`${basename}/media/logo-color.svg`} alt="VNPAY" className="login-logo" />
         </div>
