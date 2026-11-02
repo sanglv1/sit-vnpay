@@ -16,6 +16,8 @@ import com.vnpay.sit.testrun.repository.TestRunRepository;
 import org.apache.poi.xwpf.usermodel.IBodyElement;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFPicture;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
@@ -31,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +50,8 @@ class MinutesExportApiIntegrationTest {
 
     private static final String TINY_PNG_DATA_URL =
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    private static final String OTHER_PNG_DATA_URL =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg==";
 
     @Autowired
     private MockMvc mockMvc;
@@ -128,6 +133,8 @@ class MinutesExportApiIntegrationTest {
         manual.setPartnerName(partner.getName());
         manual.setReturnSuccessTxnRef("RETURN_OK");
         manual.setReturnFailedTxnRef("RETURN_FAIL");
+        manual.setReturnSuccessImage(TINY_PNG_DATA_URL);
+        manual.setReturnFailedImage(OTHER_PNG_DATA_URL);
         manual.setExceptionHandled(true);
         manual.setWhitelistIpPassed(true);
         manual.setLogStoragePassed(false);
@@ -153,6 +160,11 @@ class MinutesExportApiIntegrationTest {
         assertThat(allText).contains("Đã xử lý");
         assertThat(allText).doesNotContain("${TMN_CODE}");
         assertThat(allText).doesNotContain("${CASE_1_RESULT}");
+
+        List<byte[]> shownPictures = embeddedPictureBytes(content);
+        assertThat(shownPictures).hasSize(2);
+        assertThat(shownPictures.get(0)).isEqualTo(decodeDataUrl(TINY_PNG_DATA_URL));
+        assertThat(shownPictures.get(1)).isEqualTo(decodeDataUrl(OTHER_PNG_DATA_URL));
     }
 
     @Test
@@ -819,6 +831,36 @@ class MinutesExportApiIntegrationTest {
         run.setDurationMs(10L);
         run.setCreatedAt(LocalDateTime.now());
         testRunRepository.save(run);
+    }
+
+    private static byte[] decodeDataUrl(String dataUrl) {
+        return Base64.getDecoder().decode(dataUrl.substring(dataUrl.indexOf(',') + 1));
+    }
+
+    private List<byte[]> embeddedPictureBytes(byte[] content) throws Exception {
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(content))) {
+            List<byte[]> pictures = new ArrayList<>();
+            collectPictures(doc.getBodyElements(), pictures);
+            return pictures;
+        }
+    }
+
+    private void collectPictures(List<IBodyElement> elements, List<byte[]> pictures) {
+        for (IBodyElement element : elements) {
+            if (element instanceof XWPFParagraph paragraph) {
+                for (XWPFRun run : paragraph.getRuns()) {
+                    for (XWPFPicture picture : run.getEmbeddedPictures()) {
+                        pictures.add(picture.getPictureData().getData());
+                    }
+                }
+            } else if (element instanceof XWPFTable table) {
+                for (XWPFTableRow row : table.getRows()) {
+                    for (XWPFTableCell cell : row.getTableCells()) {
+                        collectPictures(cell.getBodyElements(), pictures);
+                    }
+                }
+            }
+        }
     }
 
     private String readDocText(byte[] content) throws Exception {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
@@ -205,6 +205,7 @@ const SessionManual = () => {
     enabled: Boolean(sessionId),
   });
   const saveAcceptance = useSaveManualAcceptanceMutation(sessionId);
+  const acceptanceHydrationKey = useRef('');
 
   useEffect(() => {
     if (!flowScenarios) return;
@@ -221,6 +222,13 @@ const SessionManual = () => {
 
   useEffect(() => {
     if (!session || !acceptanceLoaded) return;
+    const hydrationKey = acceptance
+      ? `${session.id}:${acceptance.id}:${acceptance.updatedAt || ''}`
+      : `${session.id}:empty`;
+    if (acceptanceHydrationKey.current === hydrationKey) {
+      return;
+    }
+    acceptanceHydrationKey.current = hydrationKey;
     if (!acceptance) {
       reset({
         partnerId: session.partnerId,
@@ -242,6 +250,8 @@ const SessionManual = () => {
       sessionId: session.id,
       returnSuccessTxnRef: acceptance.returnSuccessTxnRef || '',
       returnFailedTxnRef: acceptance.returnFailedTxnRef || '',
+      returnSuccessImage: acceptance.returnSuccessImage || '',
+      returnFailedImage: acceptance.returnFailedImage || '',
       exceptionHandled: acceptance.exceptionHandled != null ? String(acceptance.exceptionHandled) : 'true',
       whitelistIpPassed: acceptance.whitelistIpPassed != null ? String(acceptance.whitelistIpPassed) : 'true',
       logStoragePassed: acceptance.logStoragePassed != null ? String(acceptance.logStoragePassed) : 'true',

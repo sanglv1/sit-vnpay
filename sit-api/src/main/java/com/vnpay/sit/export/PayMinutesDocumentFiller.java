@@ -8,6 +8,7 @@ import com.vnpay.sit.model.TestCaseType;
 import com.vnpay.sit.testrun.entity.TestRun;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +89,9 @@ final class PayMinutesDocumentFiller {
         boolean awaitingIpnEval = false;
         String pendingManual = null;
 
-        for (XWPFParagraph paragraph : DocxParagraphWalker.allParagraphs(document)) {
+        List<XWPFParagraph> paragraphs = DocxParagraphWalker.allParagraphs(document);
+        for (int index = 0; index < paragraphs.size(); index++) {
+            XWPFParagraph paragraph = paragraphs.get(index);
             String text = normalize(paragraph.getText());
             if (text.isEmpty()) {
                 continue;
@@ -155,6 +158,14 @@ final class PayMinutesDocumentFiller {
                 }
                 if (inIpn && currentCase != null && currentCase != TestCaseType.UNKNOWN_ERROR) {
                     awaitingIpnEval = true;
+                }
+                continue;
+            }
+
+            if (inReturnUrl && text.startsWith("Màn hình kết quả")) {
+                String image = returnImage(ctx, returnSuccess, returnFailed);
+                if (hasText(image)) {
+                    replaceFollowingScreenshot(paragraphs, index, image);
                 }
                 continue;
             }
@@ -418,6 +429,46 @@ final class PayMinutesDocumentFiller {
             case INVALID_HASH -> "Invalid signature";
             case UNKNOWN_ERROR -> "Unknown error";
         };
+    }
+
+    /**
+     * Mẫu Pay nhúng sẵn ảnh minh họa. Ảnh QC tải lên phải thay đúng đoạn đó,
+     * nếu không biên bản xuất ra vẫn là ảnh gốc trong file mẫu.
+     */
+    private void replaceFollowingScreenshot(List<XWPFParagraph> paragraphs, int captionIndex, String dataUrl) {
+        for (int i = captionIndex + 1; i < paragraphs.size() && i <= captionIndex + 4; i++) {
+            XWPFParagraph candidate = paragraphs.get(i);
+            if (hasEmbeddedPicture(candidate)) {
+                DocxImageInserter.embedDataUrlImage(candidate, dataUrl, null);
+                return;
+            }
+            if (!normalize(candidate.getText()).isEmpty()) {
+                return;
+            }
+        }
+    }
+
+    private static boolean hasEmbeddedPicture(XWPFParagraph paragraph) {
+        for (XWPFRun run : paragraph.getRuns()) {
+            if (!run.getEmbeddedPictures().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String returnImage(MinutesExportContext ctx, boolean returnSuccess, boolean returnFailed) {
+        ManualAcceptance manual = ctx.getManualAcceptance();
+        if (manual == null) {
+            return "";
+        }
+        if (returnSuccess) {
+            return blank(manual.getReturnSuccessImage());
+        }
+        if (returnFailed) {
+            return blank(manual.getReturnFailedImage());
+        }
+        return "";
     }
 
     private String txnRef(ManualAcceptance manual, boolean success) {
